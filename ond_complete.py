@@ -17,6 +17,7 @@ granularity = "S5"
 td = timedelta(hours=1)
 
 def get_raw_data(td, granularity):
+    # Function gets the historical data for td-period till now
     time_now = datetime.utcnow()
     starting_time = time_now - td
     _from = starting_time.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -33,10 +34,9 @@ def get_raw_data(td, granularity):
         timeframe_price_data = r.response.get('candles')
         return timeframe_price_data
 
-timeframe_price_data = get_raw_data(td, granularity)
-
 
 def prepare_the_data(timeframe_price_data):
+    # Makes several lists of instances for future usage
     dates = list()
     prices = list()
     instances = list()
@@ -62,8 +62,7 @@ def prepare_the_data(timeframe_price_data):
 
 
 def predict_prices(instances, prices, x):
-    
-
+    # Funtion calculates rate prediction with three methods
     min_price = float(min(prices)) - 0.0005
     max_price = float(max(prices)) + 0.0005
 
@@ -73,7 +72,7 @@ def predict_prices(instances, prices, x):
     svr_lin.fit(instances, prices)
     svr_poly.fit(instances, prices)
     svr_rbf.fit(instances, prices)
-
+# TO DO - Find out the problem with prediction models
     plt.scatter(instances, prices, color = '#191970', label = 'Time')
     plt.plot(instances, svr_rbf.predict(instances), color = 'red', label = 'RBF model')
     plt.plot(instances, svr_lin.predict(instances), color = 'green', label = 'Linear model')

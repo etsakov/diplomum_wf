@@ -1,13 +1,22 @@
 import json
+import requests
 import oandapyV20
 import oandapyV20.endpoints.trades as trades
+# import oandapyV20.endpoints.orders as orders
+from config import ACCESS_TOKEN, ACCOUNT_ID
+import time
 
-accountID = "101-004-6259640-001"
-access_token = "d612e5b6e0f902b605207883dded35bc-8928c64998a13c444885331fd77cf935"
-amount_of_units = '100'
-trade_id = '...'
+trade_id = '441'
 
-client = oandapyV20.API(access_token = access_token)
-r = accounts.TradeDetails(accountID = accountID, tradeID = trade_id)
+client = oandapyV20.API(access_token=ACCESS_TOKEN)
+r = trades.TradeDetails(accountID=ACCOUNT_ID, tradeID=trade_id)
 client.request(r)
 print(r.response)
+
+# x = 0
+# while x != 1:
+#     client = oandapyV20.API(access_token=ACCESS_TOKEN)
+#     r = orders.OrdersPending(ACCOUNT_ID)
+#     client.request(r)
+#     print(r.response)
+#     time.sleep(1)

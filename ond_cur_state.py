@@ -2,14 +2,14 @@ import requests
 import oandapyV20
 import oandapyV20.endpoints.accounts as accounts
 from datetime import datetime
-from optparse import OptionParser
+# from optparse import OptionParser
 from config import ACCESS_TOKEN, ACCOUNT_ID
 
-domainDict = { 'live' : 'stream-fxtrade.oanda.com',
-               'demo' : 'stream-fxpractice.oanda.com' }
+# domainDict = { 'live' : 'stream-fxtrade.oanda.com',
+#                'demo' : 'stream-fxpractice.oanda.com' }
 # Replace the following variables with your personal values 
-environment = 'demo' # Replace this 'live' if you wish to connect to the live environment 
-domain = domainDict[environment] 
+# environment = 'demo' # Replace this 'live' if you wish to connect to the live environment 
+# domain = domainDict[environment] 
 
 
 def statement_indication(access_token, account_id):
@@ -52,6 +52,7 @@ def show_general_info(unstructured_info):
         statement_info["hedge_available"] = unstructured_info["account"]["hedgingEnabled"]
         statement_info["profit_or_loss"] = unstructured_info["account"]["pl"]
         statement_info["number_of_pending_orders"] = unstructured_info["account"]["pendingOrderCount"]
+        statement_info["available_units"] = format(float(unstructured_info["account"]["marginAvailable"]) / float(unstructured_info["account"]["marginRate"]), '.0f')
         return statement_info
 
 def show_current_state_info(statement_info):
@@ -61,6 +62,7 @@ def show_current_state_info(statement_info):
     print("account_type: ".title(), statement_info["account_type"])
     print("currency: ".title(), statement_info["currency"])
     print("hedge_available: ".title(), statement_info["hedge_available"])
+    print("units_available: ".title(), statement_info["available_units"])
     print("----------------------------------")
     print("number_positions_opened: ".title(), statement_info["number_positions_opened"])
     print("leverage: ".title(), statement_info["leverage"])
