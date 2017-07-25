@@ -93,7 +93,7 @@ def read_stream_data_generator(stream_generator):
 
 
 def trades_pip_margin_indicator(trades_stream_data, structured_price_data):
-    # Generates profit in PIPs to facilitate the decision making for following trades
+    # Generates profit in PIPs for the last trade to facilitate the decision making for following trades
     a = 0
     while a != 1:
         time_now = datetime.utcnow()
@@ -140,14 +140,35 @@ def shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID):
     return units_available
 
 
-def rate_direction_predictor(trades_stream_data, trade_units_available, structured_price_data, INSTRUMENTS):
-    # Chooses direction for the first deal
+def make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price):
+    # Just trading engine for the usage in following functions
+    data = {
+            "order": {
+            "timeInForce": "FOK",
+            "instrument": INSTRUMENTS,
+            "units": units_quantity,  
+            "type": "MARKET",
+            "positionFill": "DEFAULT",
+            "takeProfitOnFill": {
+                "timeInForce": "GTC",
+                "price": take_profit_price
+            }
+        }
+    }
+
+    client = oandapyV20.API(access_token = ACCESS_TOKEN)
+    r = orders.OrderCreate(accountID = ACCOUNT_ID, data = data)
+    rv = client.request(r)
+    print(r.response)
+
+
+def rate_direction_predictor(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, trade_units_available, structured_price_data, INSTRUMENTS):
+    # Chooses direction for the first deal and makes the first trade
     # d = 0
     # while d != 1:
     print('trade_units_available: ', trade_units_available)
     for tsd_item in trades_stream_data:
         if len(tsd_item) > 0:
-            print('We have currently ', len(tsd_item), ' active transactions.')
             break
         else:
             for struct_price_data_item in structured_price_data:
@@ -175,24 +196,7 @@ def rate_direction_predictor(trades_stream_data, trade_units_available, structur
 
             amount_of_units = int(int(trade_units_available) / 10)
             units_quantity = direction + str(amount_of_units)
-            data = {
-                    "order": {
-                    "timeInForce": "FOK",
-                    "instrument": INSTRUMENTS,
-                    "units": units_quantity,  
-                    "type": "MARKET",
-                    "positionFill": "DEFAULT",
-                    "takeProfitOnFill": {
-                        "timeInForce": "GTC",
-                        "price": take_profit_price
-                    }
-                }
-            }
-
-            client = oandapyV20.API(access_token = ACCESS_TOKEN)
-            r = orders.OrderCreate(accountID = ACCOUNT_ID, data = data)
-            client.request(r)
-            print(r.response)
+            make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
             break
         break
                     
@@ -200,12 +204,12 @@ def rate_direction_predictor(trades_stream_data, trade_units_available, structur
         # TO DO - It semms to be correct to initiate two parallel programms: to collect the data and to initiate trades.
 
 
-def following_trades_creator(trades_stream_data, compare_heartbeat, trade_units_available, structured_price_data, INSTRUMENTS):
+def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, compare_heartbeat, trade_units_available, structured_price_data, INSTRUMENTS):
     # Once the initial trade is open makes further trades
     # c = 0
     # while c != 1:
     for tsd_item in trades_stream_data:
-        print(len(tsd_item))
+        print('We have currently ', len(tsd_item), ' active transactions.')
         if len(tsd_item) == 0:
             break
         else:
@@ -213,71 +217,49 @@ def following_trades_creator(trades_stream_data, compare_heartbeat, trade_units_
                 unit = len(trade)
                 trade_amount = trade[0]['trade_amount']
                 trade_profit = trade[0]['trade_' + str(unit)]
-                print('trade_amount ', trade_amount, ' ', type(trade_amount))
-                print('trade_profit ', trade_profit, ' ', type(trade_profit))
+                print('Last trade amount: ', trade_amount)
+                print('Unrealized profit for the last trade: ', trade_profit)
                 break
 
             for price_lists in structured_price_data:
                 ask_rate = price_lists[1][-1]
                 bid_rate = price_lists[2][-1]
-                print('ask_rate ', ask_rate, ' ', type(ask_rate))
-                print('bid_rate ', bid_rate, ' ', type(bid_rate))
+                print('Current ASK rate: ', ask_rate)
+                print('Current BID rate: ', bid_rate)
                 break
 
             print('Trade units left: ', trade_units_available)
 
             if int(trade_units_available) < abs(trade_amount):
+                print('********************************')
                 print('!!!Not enough units to trade!!!')
+                print('********************************')
                 break
 
             else:
                 if trade_profit < -3:
                     if trade_amount > 0:
                         take_profit_price = format(ask_rate + 0.0002, '.5f')
+                        units_quantity = str(trade_amount)
+                        make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
+                        break
                     else:
                         take_profit_price = format(bid_rate - 0.0002, '.5f')
-                    data = {
-                            "order": {
-                            "timeInForce": "FOK",
-                            "instrument": INSTRUMENTS,
-                            "units": str(trade_amount),  
-                            "type": "MARKET",
-                            "positionFill": "DEFAULT",
-                            "takeProfitOnFill": {
-                                "timeInForce": "GTC",
-                                "price": take_profit_price
-                            }
-                        }
-                    }
-                    client = oandapyV20.API(access_token = ACCESS_TOKEN)
-                    r = orders.OrderCreate(accountID = ACCOUNT_ID, data = data)
-                    client.request(r)
-                    print(r.response)
-                    break
+                        units_quantity = str(trade_amount)
+                        make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
+                        break
+
                 elif trade_profit > 1:
                     if trade_amount > 0:
                         take_profit_price = format(ask_rate + 0.0001, '.5f')
+                        units_quantity = str(trade_amount)
+                        make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
+                        break
                     else:
                         take_profit_price = format(bid_rate - 0.0001, '.5f')
-                    data = {
-                            "order": {
-                            "timeInForce": "FOK",
-                            "instrument": INSTRUMENTS,
-                            "units": str(trade_amount),  
-                            "type": "MARKET",
-                            "positionFill": "DEFAULT",
-                            "takeProfitOnFill": {
-                                "timeInForce": "GTC",
-                                "price": take_profit_price
-                            }
-                        }
-                    }
-                    client = oandapyV20.API(access_token = ACCESS_TOKEN)
-                    r = orders.OrderCreate(accountID = ACCOUNT_ID, data = data)
-                    client.request(r)
-                    print(r.response)
-                    break
-
+                        units_quantity = str(trade_amount)
+                        make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
+                        break
                 else:
                     break
         # break
@@ -293,12 +275,17 @@ if __name__=="__main__":
     
     for h in trades_stream_data:
         if len(h) == 0:
-            rate_direction_predictor(trades_stream_data, trade_units_available, structured_price_data, INSTRUMENTS)
-            print('First trade created')
+            print('*******************************************')
+            rate_direction_predictor(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, trade_units_available, structured_price_data, INSTRUMENTS)
+            print('The initial order has been put. Good luck!')
+            print('*******************************************')
             time.sleep(5)
+            pass
         else:
-            following_trades_creator(trades_stream_data, compare_heartbeat, trade_units_available, structured_price_data, INSTRUMENTS)
+            print('*******************************************')
+            following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, compare_heartbeat, trade_units_available, structured_price_data, INSTRUMENTS)
             print('I am active. The fund is working. Relax!')
+            print('*******************************************')
             time.sleep(5)
             pass
     # TIME NOW?? datetime.strftime(datetime.utcnow(), '%Y-%m-%dT%H:%M:%SZ')
