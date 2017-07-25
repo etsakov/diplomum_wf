@@ -7,6 +7,7 @@ import oandapyV20.endpoints.orders as orders
 import oandapyV20.endpoints.trades as trades
 import oandapyV20.endpoints.accounts as accounts
 from config import ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS
+from collections import deque
 from datetime import datetime, timedelta
 import time
 import ast
@@ -20,28 +21,25 @@ def quasi_stream_trades_info_generator(ACCESS_TOKEN, ACCOUNT_ID):
     r = trades.TradesList(ACCOUNT_ID)
 
     while True:
-        rv = api.request(r)
-        trades_full_info = format(json.dumps(rv, indent=2))
-        trades_full_info = ast.literal_eval(trades_full_info)
-        # ast.literal_eval - converts a string to a dictionary
-        trade_item = 0
-        number_of_trades = len(trades_full_info['trades'])
+        trades_full_info = api.request(r)
+        trades_data = trades_full_info['trades']
         trade_list = list()
         
-        for trade_item_info in trades_full_info['trades'][:number_of_trades]:
-            trade_item_info = dict()
-            trade_item_info['tradeID'] = trades_full_info['trades'][trade_item]['takeProfitOrder']['tradeID']
-            trade_item_info['state'] = trades_full_info['trades'][trade_item]['state']
-            trade_item_info['instrument'] = trades_full_info['trades'][trade_item]['instrument']
-            trade_item_info['open_time'] = datetime.strftime(datetime.strptime(trades_full_info['trades'][trade_item]['openTime'].split('.')[0], '%Y-%m-%dT%H:%M:%S'), '%Y-%m-%dT%H:%M:%SZ')
-            trade_item_info['currentUnits'] = int(trades_full_info['trades'][trade_item]['currentUnits'])
-            trade_item_info['initial_price'] = float(trades_full_info['trades'][trade_item]['price'])
-            trade_item_info['take_profit_price'] = float(trades_full_info['trades'][trade_item]['takeProfitOrder']['price'])
-            trade_item_info['take_profit_pips'] = format((float(trades_full_info['trades'][trade_item]['takeProfitOrder']['price']) - float(trades_full_info['trades'][trade_item]['price'])) * 10000, '.1f')
-            trade_item_info['unrealized_PL'] = float(trades_full_info['trades'][trade_item]['unrealizedPL'])
-            trade_item_info['financing'] = float(trades_full_info['trades'][trade_item]['financing'])
+        for trade in trades_data:
+            open_datetime = datetime.strptime(trade['openTime'].split('.')[0], '%Y-%m-%dT%H:%M:%S')
+            trade_item_info = {
+                'tradeID' : trade['takeProfitOrder']['tradeID'],
+                'state' : trade['state'],
+                'instrument' : trade['instrument'],
+                'open_time' : datetime.strftime(open_datetime, '%Y-%m-%dT%H:%M:%SZ'),
+                'currentUnits' : int(trade['currentUnits']),
+                'initial_price' : float(trade['price']),
+                'take_profit_price' : float(trade['takeProfitOrder']['price']),
+                'take_profit_pips' : format((float(trade['takeProfitOrder']['price']) - float(trade['price'])) * 10000, '.1f'),
+                'unrealized_PL' : float(trade['unrealizedPL']),
+                'financing' : float(trade['financing']),
+            }
             trade_list.append(trade_item_info)
-            trade_item += 1
 
         yield trade_list
         time.sleep(1)
@@ -49,12 +47,15 @@ def quasi_stream_trades_info_generator(ACCESS_TOKEN, ACCOUNT_ID):
 
 def stream_rates_generator(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS):
     # Connects to the rate stream and re-generates rate in a stream
-    url = 'https://stream-fxpractice.oanda.com/v3/accounts/' + ACCOUNT_ID + '/pricing/stream?instruments=%s' % (INSTRUMENTS)
+    url = 'https://stream-fxpractice.oanda.com/v3/accounts/{}/pricing/stream'.format(ACCOUNT_ID)
+    params = {
+        'instruments': INSTRUMENTS,
+    }
     head = {'Content-type':"application/json",
             'Accept-Datetime-Format':"RFC3339",
             'Authorization':"Bearer " + ACCESS_TOKEN}
 
-    r = requests.get(url, headers=head, stream=True)
+    r = requests.get(url, params = params, headers = head, stream = True)
     for line in r.iter_lines():
 
         if line:
@@ -64,28 +65,26 @@ def stream_rates_generator(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS):
 
 def read_stream_data_generator(stream_generator):
     # Interprets stream info to the operable instances
-    ask_rates = list()
-    bid_rates = list()
+    ask_rates = deque(maxlen=150)
+    bid_rates = deque(maxlen=150)
 
     for rate in stream_generator:
-        if rate['type'] == 'PRICE':
-            instant_rates = dict()
-            instant_rates['time'] = datetime.strftime(datetime.strptime(rate['time'].split('.')[0], '%Y-%m-%dT%H:%M:%S'), '%d.%m.%Y %H:%M:%S')
-            instant_rates['status'] = rate['status']
-            instant_rates['ask'] = float(rate['asks'][0]['price'])
-            instant_rates['bid'] = float(rate['bids'][0]['price'])
-            instant_rates['spread'] = float('%.5f' % (float(rate['asks'][0]['price']) - float(rate['bids'][0]['price'])))
-            if len(ask_rates) < 150:
-                ask_rates.append(float(rate['asks'][0]['price']))
-                bid_rates.append(float(rate['bids'][0]['price']))
-            else:
-                print('Value to delete from ASK: ', ask_rates[-150])
-                del(ask_rates[-150])
-                print('Value to delete from BID: ', bid_rates[-150])
-                del(bid_rates[-150])
-        else:
-            print("No data available")
-            pass
+        if rate['type'] != 'PRICE':
+            print(">>> No data available <<<")
+            continue
+
+        instant_time = datetime.strptime(rate['time'].split('.')[0], '%Y-%m-%dT%H:%M:%S')
+        instant_rates = {
+            'time' : datetime.strftime(instant_time, '%d.%m.%Y %H:%M:%S'),
+            'status' : rate['status'],
+            'ask' : float(rate['asks'][0]['price']),
+            'bid' : float(rate['bids'][0]['price']),
+            'spread' : float('%.5f' % (float(rate['asks'][0]['price']) - float(rate['bids'][0]['price']))),
+        }
+        
+        ask_rates.append(float(rate['asks'][0]['price']))
+        bid_rates.append(float(rate['bids'][0]['price']))
+            
         yield instant_rates, ask_rates, bid_rates
 
 
@@ -122,6 +121,7 @@ def trades_pip_margin_indicator(trades_stream_data, structured_price_data):
                 trades_profits.append(profit_in_pips)
             if len(trades_profits) == number_of_tr_items:
                 yield trades_profits
+                time.sleep(1)
             else:
                 pass
             tr_item += 1
@@ -197,11 +197,24 @@ def rate_direction_predictor(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, trade
         break
                     
         
-        # TO DO - It semms to be correct to initiate two parallel programms: to collect the data and to initiate trades.
+        # TO DO - It semms to be a good idea to initiate two parallel programms: to collect the data and to initiate trades.
 
 
 def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, compare_heartbeat, trade_units_available, structured_price_data, INSTRUMENTS):
     # Once the initial trade is open makes further trades
+
+# !!! The function cannot capture the "positive" graph behaviour - all "positive" following trades are cancelled
+# {'orderCreateTransaction': {'id': '1460', 'instrument': 'EUR_USD', 'userID': 6259640, 
+# 'requestID': '42324510077575889', 'timeInForce': 'FOK', 'time': '2017-07-25T20:36:01.449758667Z', 
+# 'type': 'MARKET_ORDER', 'positionFill': 'DEFAULT', 'takeProfitOnFill': {'price': '1.16455', 
+# 'timeInForce': 'GTC'}, 'reason': 'CLIENT_ORDER', 'batchID': '1460', 'units': '979', 
+# 'accountID': '101-004-6259640-001'}, 'orderCancelTransaction': {'id': '1461', 
+# 'time': '2017-07-25T20:36:01.449758667Z', 'accountID': '101-004-6259640-001', 'userID': 6259640, 
+# 'requestID': '42324510077575889', 'reason': 'LOSING_TAKE_PROFIT', 'batchID': '1460', 
+# 'orderID': '1460', 'type': 'ORDER_CANCEL'}, 'lastTransactionID': '1461', 
+# 'relatedTransactionIDs': ['1460', '1461']}
+
+
     for tsd_item in trades_stream_data:
         print('We currently have ', len(tsd_item), ' active transaction(s).')
         if len(tsd_item) == 0:
