@@ -58,7 +58,6 @@ def stream_rates_generator(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS):
             'Authorization':"Bearer " + ACCESS_TOKEN}
 
     r = requests.get(url, headers=head, stream=True)
-    # print(r)
     for line in r.iter_lines():
 
         if line:
@@ -87,7 +86,6 @@ def read_stream_data_generator(stream_generator):
                 del(ask_rates[-150])
                 print('Value to delete from BID: ', bid_rates[-150])
                 del(bid_rates[-150])
-
         else:
             print("No data available")
             pass
@@ -127,7 +125,6 @@ def trades_pip_margin_indicator(trades_stream_data, structured_price_data):
                 profit_in_pips['trade_amount'] = full_trades_data[tr_item]['currentUnits']
                 trades_profits.append(profit_in_pips)
             if len(trades_profits) == number_of_tr_items:
-                # print('trades_profits', trades_profits)
                 yield trades_profits
             else:
                 pass
@@ -145,7 +142,6 @@ def shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID):
 
 def rate_direction_predictor(trades_stream_data, trade_units_available, structured_price_data, INSTRUMENTS):
     # Chooses direction for the first deal
-
     d = 0
     while d != 1:
         print('trade_units_available: ', trade_units_available)
@@ -262,9 +258,7 @@ def following_trades_creator(trades_stream_data, compare_heartbeat, trade_units_
                     client.request(r)
                     print(r.response)
             break
-
         time.sleep(1)
-
 
 
 if __name__=="__main__":
@@ -273,31 +267,7 @@ if __name__=="__main__":
     structured_price_data = read_stream_data_generator(stream_generator)
     compare_heartbeat = trades_pip_margin_indicator(trades_stream_data, structured_price_data)
     trade_units_available = shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID)
-    # price_lists_generator = price_lists_generator(structured_price_data)
     rate_direction_predictor(trades_stream_data, trade_units_available, structured_price_data, INSTRUMENTS)
     following_trades_creator(trades_stream_data, compare_heartbeat, trade_units_available, structured_price_data, INSTRUMENTS)
-
-    # b = 0
-    # while b != 1:
-    #     for test_beat in rate_direction_predictor(trades_stream_data, trade_units_available, structured_price_data):
-    #         print(test_beat)
-    #         print(shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID))
-    #         time.sleep(1)
-    
-
-    # l = 0
-    # while l != 1:
-    #     for cur_trades in quasi_stream_trades_info_generator(ACCESS_TOKEN, ACCOUNT_ID):
-    #         print(cur_trades)
-    #         time_now = datetime.utcnow()
-    #         print(time_now)
-    #         break
-
-    #     stream_generator = stream_rates_generator(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS)
-    #     structured_price_data = read_stream_data_generator(stream_generator)
-    #     for rate_lists in price_lists_generator(structured_price_data):
-    #         print('Ask price list: ', rate_lists[0])
-    #         print('Bid price list: ', rate_lists[1])
-    #         break
 
     # TIME NOW?? datetime.strftime(datetime.utcnow(), '%Y-%m-%dT%H:%M:%SZ')
