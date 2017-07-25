@@ -51,7 +51,7 @@ def quasi_stream_trades_info_generator(ACCESS_TOKEN, ACCOUNT_ID):
 
 
 def stream_rates_generator(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS):
-    # Connects to the rate stream and re-generates rate info stream
+    # Connects to the rate stream and re-generates rate in a stream
     url = 'https://stream-fxpractice.oanda.com/v3/accounts/' + ACCOUNT_ID + '/pricing/stream?instruments=%s' % (INSTRUMENTS)
     head = {'Content-type':"application/json",
             'Accept-Datetime-Format':"RFC3339",
@@ -92,13 +92,6 @@ def read_stream_data_generator(stream_generator):
             print("No data available")
             pass
         yield instant_rates, ask_rates, bid_rates
-
-def price_lists_generator(structured_price_data):
-    # Generates the lists for the future dynamics prediction
-    for price_list in structured_price_data:
-        ask_price_list = price_list[1]
-        bid_price_list = price_list[2]
-        yield ask_price_list, bid_price_list
 
 
 def trades_pip_margin_indicator(trades_stream_data, structured_price_data):
@@ -150,7 +143,7 @@ def shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID):
     return units_available
 
 
-def rate_direction_predictor(trades_stream_data, trade_units_available, price_lists_generator):
+def rate_direction_predictor(trades_stream_data, trade_units_available, structured_price_data, INSTRUMENTS):
     # Chooses direction for the first deal
 
     d = 0
@@ -161,73 +154,114 @@ def rate_direction_predictor(trades_stream_data, trade_units_available, price_li
             if len(tsd_item) > 0:
                 pass
             else:
-                for plg_item in price_lists_generator:
-                    if len(plg_item) < 5:
+                for struct_price_data_item in structured_price_data:
+                    if len(struct_price_data_item[1]) < 5:
                         pass
                     else:
-                        print(plg_item)
+                        last_price = float(struct_price_data_item[1][-1])
+                        last_five_item = 0
+                        last_five_items_sum = 0
+                        for f in struct_price_data_item[1][-5:]:
+                            last_five_items_sum += float(struct_price_data_item[1][-5:][last_five_item])
+                            last_five_item += 1
+                        last_five_avg = float(format(float(last_five_items_sum) / 5, '.5f'))
+                        print('Last price', last_price)
+                        print('Last five average', last_five_avg)
+                        if last_price < last_five_avg:
+                            direction = '-'
+                            take_profit_price = format(last_price - 0.0003, '.5f')
+                        else:
+                            direction = ''
+                            take_profit_price = format(last_price + 0.0003, '.5f')
 
+                        amount_of_units = int(int(trade_units_available) / 10)
+                        units_quantity = direction + str(amount_of_units)
+                        data = {
+                                "order": {
+                                "timeInForce": "FOK",
+                                "instrument": INSTRUMENTS,
+                                "units": units_quantity,  
+                                "type": "MARKET",
+                                "positionFill": "DEFAULT",
+                                "takeProfitOnFill": {
+                                    "timeInForce": "GTC",
+                                    "price": take_profit_price
+                                }
+                            }
+                        }
+
+                        client = oandapyV20.API(access_token = ACCESS_TOKEN)
+                        r = orders.OrderCreate(accountID = ACCOUNT_ID, data = data)
+                        client.request(r)
+                        print(r.response)
+                        
             break
             # TO DO - It semms to be correct to initiate two parallel programms: to collect the data and to initiate trades.
 
 
-def following_trades_creator(compare_heartbeat, trade_units_available, structured_price_data, INSTRUMENTS):
+def following_trades_creator(trades_stream_data, compare_heartbeat, trade_units_available, structured_price_data, INSTRUMENTS):
     # Once the initial trade is open makes further trades
     c = 0
     while c != 1:
-        for trade in compare_heartbeat:
-            unit = len(trade)
-            trade_amount = trade[0]['trade_amount']
-            trade_profit = trade[0]['trade_' + str(unit)]
-            print('trade_amount ', trade_amount, ' ', type(trade_amount))
-            print('trade_profit ', trade_profit, ' ', type(trade_profit))
-            break
-
-        for price_lists in structured_price_data:
-            ask_rate = price_lists[1][-1]
-            bid_rate = price_lists[2][-1]
-            print('ask_rate ', ask_rate, ' ', type(ask_rate))
-            print('bid_rate ', bid_rate, ' ', type(bid_rate))
-            break
-
-        print('Trade units left: ', trade_units_available)
-
-        if int(trade_units_available) < abs(trade_amount):
-            print('!!!Not enough units to trade!!!')
-
-        else:
-            if trade_profit < -1:
-                if trade_amount > 0:
-                    take_profit_price = str(ask_rate + 0.0001)
-                else:
-                    take_profit_price = str(bid_rate - 0.0001)
-            elif trade_profit > 1:
-                if trade_amount > 0:
-                    take_profit_price = str(ask_rate + 0.0001)
-                else:
-                    take_profit_price = str(bid_rate - 0.0001)
-
-            else:
+        for tsd_item in trades_stream_data:
+            print(len(tsd_item))
+            if len(tsd_item) == 0:
                 pass
+            else:
+                for trade in compare_heartbeat:
+                    unit = len(trade)
+                    trade_amount = trade[0]['trade_amount']
+                    trade_profit = trade[0]['trade_' + str(unit)]
+                    print('trade_amount ', trade_amount, ' ', type(trade_amount))
+                    print('trade_profit ', trade_profit, ' ', type(trade_profit))
+                    break
 
-            data = {
-                    "order": {
-                    "timeInForce": "FOK",
-                    "instrument": INSTRUMENTS,
-                    "units": str(trade_amount),  
-                    "type": "MARKET",
-                    "positionFill": "DEFAULT",
-                    "takeProfitOnFill": {
-                        "timeInForce": "GTC",
-                        "price": take_profit_price
+                for price_lists in structured_price_data:
+                    ask_rate = price_lists[1][-1]
+                    bid_rate = price_lists[2][-1]
+                    print('ask_rate ', ask_rate, ' ', type(ask_rate))
+                    print('bid_rate ', bid_rate, ' ', type(bid_rate))
+                    break
+
+                print('Trade units left: ', trade_units_available)
+
+                if int(trade_units_available) < abs(trade_amount):
+                    print('!!!Not enough units to trade!!!')
+
+                else:
+                    if trade_profit < -5:
+                        if trade_amount > 0:
+                            take_profit_price = format(ask_rate + 0.0002, '.5f')
+                        else:
+                            take_profit_price = format(bid_rate - 0.0002, '.5f')
+                    elif trade_profit > 1:
+                        if trade_amount > 0:
+                            take_profit_price = format(ask_rate + 0.0001, '.5f')
+                        else:
+                            take_profit_price = format(bid_rate - 0.0001, '.5f')
+
+                    else:
+                        pass
+
+                    data = {
+                            "order": {
+                            "timeInForce": "FOK",
+                            "instrument": INSTRUMENTS,
+                            "units": str(trade_amount),  
+                            "type": "MARKET",
+                            "positionFill": "DEFAULT",
+                            "takeProfitOnFill": {
+                                "timeInForce": "GTC",
+                                "price": take_profit_price
+                            }
+                        }
                     }
-                }
-            }
 
-            client = oandapyV20.API(access_token = ACCESS_TOKEN)
-            r = orders.OrderCreate(accountID = ACCOUNT_ID, data = data)
-            client.request(r)
-            print(r.response)
+                    client = oandapyV20.API(access_token = ACCESS_TOKEN)
+                    r = orders.OrderCreate(accountID = ACCOUNT_ID, data = data)
+                    client.request(r)
+                    print(r.response)
+            break
 
         time.sleep(1)
 
@@ -239,16 +273,16 @@ if __name__=="__main__":
     structured_price_data = read_stream_data_generator(stream_generator)
     compare_heartbeat = trades_pip_margin_indicator(trades_stream_data, structured_price_data)
     trade_units_available = shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID)
-    price_lists_generator = price_lists_generator(structured_price_data)
-    # following_trades_creator(compare_heartbeat, trade_units_available, structured_price_data, INSTRUMENTS)
-    rate_direction_predictor(trades_stream_data, trade_units_available, price_lists_generator)
+    # price_lists_generator = price_lists_generator(structured_price_data)
+    rate_direction_predictor(trades_stream_data, trade_units_available, structured_price_data, INSTRUMENTS)
+    following_trades_creator(trades_stream_data, compare_heartbeat, trade_units_available, structured_price_data, INSTRUMENTS)
 
     # b = 0
     # while b != 1:
-    #     for test_beat in compare_heartbeat:
+    #     for test_beat in rate_direction_predictor(trades_stream_data, trade_units_available, structured_price_data):
     #         print(test_beat)
-            # print(shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID))
-            # time.sleep(1)
+    #         print(shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID))
+    #         time.sleep(1)
     
 
     # l = 0
