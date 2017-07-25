@@ -16,10 +16,10 @@ from sklearn.svm import SVR
 
 def quasi_stream_trades_info_generator(ACCESS_TOKEN, ACCOUNT_ID):
     # Generates a stream of current transactions info and converts it into the operable lists
-    x = 0
-    while x != 1:
-        api = API(access_token = ACCESS_TOKEN)
-        r = trades.TradesList(ACCOUNT_ID)
+    api = API(access_token = ACCESS_TOKEN)
+    r = trades.TradesList(ACCOUNT_ID)
+
+    while True:
         rv = api.request(r)
         trades_full_info = format(json.dumps(rv, indent=2))
         trades_full_info = ast.literal_eval(trades_full_info)
@@ -28,23 +28,20 @@ def quasi_stream_trades_info_generator(ACCESS_TOKEN, ACCOUNT_ID):
         number_of_trades = len(trades_full_info['trades'])
         trade_list = list()
         
-        for trade_item_info in trades_full_info['trades']:
-            if trade_item <= number_of_trades:
-                trade_item_info = dict()
-                trade_item_info['tradeID'] = trades_full_info['trades'][trade_item]['takeProfitOrder']['tradeID']
-                trade_item_info['state'] = trades_full_info['trades'][trade_item]['state']
-                trade_item_info['instrument'] = trades_full_info['trades'][trade_item]['instrument']
-                trade_item_info['open_time'] = datetime.strftime(datetime.strptime(trades_full_info['trades'][trade_item]['openTime'].split('.')[0], '%Y-%m-%dT%H:%M:%S'), '%Y-%m-%dT%H:%M:%SZ')
-                trade_item_info['currentUnits'] = int(trades_full_info['trades'][trade_item]['currentUnits'])
-                trade_item_info['initial_price'] = float(trades_full_info['trades'][trade_item]['price'])
-                trade_item_info['take_profit_price'] = float(trades_full_info['trades'][trade_item]['takeProfitOrder']['price'])
-                trade_item_info['take_profit_pips'] = format((float(trades_full_info['trades'][trade_item]['takeProfitOrder']['price']) - float(trades_full_info['trades'][trade_item]['price'])) * 10000, '.1f')
-                trade_item_info['unrealized_PL'] = float(trades_full_info['trades'][trade_item]['unrealizedPL'])
-                trade_item_info['financing'] = float(trades_full_info['trades'][trade_item]['financing'])
-                trade_list.append(trade_item_info)
-                trade_item += 1
-            else:
-                pass
+        for trade_item_info in trades_full_info['trades'][:number_of_trades]:
+            trade_item_info = dict()
+            trade_item_info['tradeID'] = trades_full_info['trades'][trade_item]['takeProfitOrder']['tradeID']
+            trade_item_info['state'] = trades_full_info['trades'][trade_item]['state']
+            trade_item_info['instrument'] = trades_full_info['trades'][trade_item]['instrument']
+            trade_item_info['open_time'] = datetime.strftime(datetime.strptime(trades_full_info['trades'][trade_item]['openTime'].split('.')[0], '%Y-%m-%dT%H:%M:%S'), '%Y-%m-%dT%H:%M:%SZ')
+            trade_item_info['currentUnits'] = int(trades_full_info['trades'][trade_item]['currentUnits'])
+            trade_item_info['initial_price'] = float(trades_full_info['trades'][trade_item]['price'])
+            trade_item_info['take_profit_price'] = float(trades_full_info['trades'][trade_item]['takeProfitOrder']['price'])
+            trade_item_info['take_profit_pips'] = format((float(trades_full_info['trades'][trade_item]['takeProfitOrder']['price']) - float(trades_full_info['trades'][trade_item]['price'])) * 10000, '.1f')
+            trade_item_info['unrealized_PL'] = float(trades_full_info['trades'][trade_item]['unrealizedPL'])
+            trade_item_info['financing'] = float(trades_full_info['trades'][trade_item]['financing'])
+            trade_list.append(trade_item_info)
+            trade_item += 1
 
         yield trade_list
         time.sleep(1)
@@ -94,8 +91,7 @@ def read_stream_data_generator(stream_generator):
 
 def trades_pip_margin_indicator(trades_stream_data, structured_price_data):
     # Generates profit in PIPs for the last trade to facilitate the decision making for following trades
-    a = 0
-    while a != 1:
+    while True:
         time_now = datetime.utcnow()
         print("Current time: ", time_now)
 
@@ -164,8 +160,6 @@ def make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_p
 
 def rate_direction_predictor(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, trade_units_available, structured_price_data, INSTRUMENTS):
     # Chooses direction for the first deal and makes the first trade
-    # d = 0
-    # while d != 1:
     print('trade_units_available: ', trade_units_available)
     for tsd_item in trades_stream_data:
         if len(tsd_item) > 0:
@@ -176,6 +170,7 @@ def rate_direction_predictor(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, trade
                     print("Not enough data to choose the direction :((")
                     continue
                 else:
+                    time.sleep(3)
                     last_price = float(struct_price_data_item[1][-1])
                     last_item = 0
                     last_five_items_sum = 0
@@ -191,12 +186,13 @@ def rate_direction_predictor(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, trade
                         break
                     else:
                         direction = ''
-                        take_profit_price = format(last_price + 0.0003, '.5f')
+                        take_profit_price = format(last_price + 0.0002, '.5f')
                         break
 
             amount_of_units = int(int(trade_units_available) / 10)
             units_quantity = direction + str(amount_of_units)
             make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
+            time.sleep(3)
             break
         break
                     
@@ -206,10 +202,8 @@ def rate_direction_predictor(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, trade
 
 def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, compare_heartbeat, trade_units_available, structured_price_data, INSTRUMENTS):
     # Once the initial trade is open makes further trades
-    # c = 0
-    # while c != 1:
     for tsd_item in trades_stream_data:
-        print('We have currently ', len(tsd_item), ' active transactions.')
+        print('We currently have ', len(tsd_item), ' active transaction(s).')
         if len(tsd_item) == 0:
             break
         else:
@@ -237,33 +231,35 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, compa
                 break
 
             else:
-                if trade_profit < -3:
-                    if trade_amount > 0:
-                        take_profit_price = format(ask_rate + 0.0002, '.5f')
-                        units_quantity = str(trade_amount)
-                        make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
-                        break
-                    else:
-                        take_profit_price = format(bid_rate - 0.0002, '.5f')
-                        units_quantity = str(trade_amount)
-                        make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
-                        break
-
-                elif trade_profit > 1:
+                if trade_profit <= -3:
                     if trade_amount > 0:
                         take_profit_price = format(ask_rate + 0.0001, '.5f')
                         units_quantity = str(trade_amount)
                         make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
+                        time.sleep(3)
                         break
                     else:
                         take_profit_price = format(bid_rate - 0.0001, '.5f')
                         units_quantity = str(trade_amount)
                         make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
+                        time.sleep(3)
+                        break
+
+                elif trade_profit >= 1:
+                    if trade_amount > 0:
+                        take_profit_price = format(ask_rate + 0.0002, '.5f')
+                        units_quantity = str(trade_amount)
+                        make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
+                        time.sleep(3)
+                        break
+                    else:
+                        take_profit_price = format(bid_rate - 0.0002, '.5f')
+                        units_quantity = str(trade_amount)
+                        make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
+                        time.sleep(3)
                         break
                 else:
                     break
-        # break
-        # time.sleep(1)
 
 
 if __name__=="__main__":
@@ -279,14 +275,12 @@ if __name__=="__main__":
             rate_direction_predictor(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, trade_units_available, structured_price_data, INSTRUMENTS)
             print('The initial order has been put. Good luck!')
             print('*******************************************')
-            time.sleep(5)
             pass
         else:
             print('*******************************************')
             following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, compare_heartbeat, trade_units_available, structured_price_data, INSTRUMENTS)
             print('I am active. The fund is working. Relax!')
             print('*******************************************')
-            time.sleep(5)
             pass
     # TIME NOW?? datetime.strftime(datetime.utcnow(), '%Y-%m-%dT%H:%M:%SZ')
 
