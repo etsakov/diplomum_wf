@@ -8,7 +8,9 @@ import oandapyV20.endpoints.trades as trades
 import oandapyV20.endpoints.accounts as accounts
 from config import ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+from dateutil.relativedelta import *
+import calendar
 import time
 import ast
 import matplotlib.pyplot as plt
@@ -245,13 +247,13 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, compa
 
             else:
                 if trade_profit <= -3:
-                    if trade_amount > 0:
+                    if trade_amount > 0: #Trade amount is positive - current direction - GO LONG
                         take_profit_price = format(ask_rate + 0.0001, '.5f')
                         units_quantity = str(trade_amount)
                         make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
                         time.sleep(3)
                         break
-                    else:
+                    else: #Trade amount is negative - current direction - GO SHORT
                         take_profit_price = format(bid_rate - 0.0001, '.5f')
                         units_quantity = str(trade_amount)
                         make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
@@ -259,13 +261,13 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, compa
                         break
 
                 elif trade_profit >= 1:
-                    if trade_amount > 0:
+                    if trade_amount > 0: #Trade amount is positive - current direction - GO LONG
                         take_profit_price = format(ask_rate + 0.0002, '.5f')
                         units_quantity = str(trade_amount)
                         make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
                         time.sleep(3)
                         break
-                    else:
+                    else: #Trade amount is negative - current direction - GO SHORT
                         take_profit_price = format(bid_rate - 0.0002, '.5f')
                         units_quantity = str(trade_amount)
                         make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
@@ -273,6 +275,25 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, compa
                         break
                 else:
                     break
+
+
+def sleep_sweet():
+    # Regulates the timing for the programm
+    time_now_mow = datetime.now()
+    today = date.today()
+    next_close_time = today+relativedelta(weekday=FR, hour=23, minutes=59)
+    next_open_time = today+relativedelta(weekday=MO, minutes=1)
+    next_start_trading_time = today+relativedelta(weekday=MO, hour=1)
+
+    if next_close_time < time_now_mow and time_now_mow < next_open_time:
+        command = 'SLEEP'
+    elif next_open_time < time_now_mow and time_now_mow < next_start_trading_time:
+        command = 'COLLECT'
+    else:
+        command = 'WORK'
+
+    yield command
+    time.sleep(3)
 
 
 if __name__=="__main__":

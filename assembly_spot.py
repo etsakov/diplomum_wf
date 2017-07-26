@@ -275,6 +275,23 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, compa
                     break
 
 
+def sleep_sweet():
+    # Regulates the timing for the programm
+    time_now_mow = datetime.now()
+    today = date.today()
+    next_close_time = today+relativedelta(weekday=FR, hour=23, minutes=59)
+    next_open_time = today+relativedelta(weekday=MO, minutes=1)
+    next_start_trading_time = today+relativedelta(weekday=MO, hour=1)
+
+    if next_close_time < time_now_mow and time_now_mow < next_open_time:
+        command = 'SLEEP'
+    elif next_open_time < time_now_mow and time_now_mow < next_start_trading_time:
+        command = 'COLLECT'
+    else:
+        command = 'WORK'
+    yield command
+
+
 if __name__=="__main__":
     trades_stream_data = quasi_stream_trades_info_generator(ACCESS_TOKEN, ACCOUNT_ID)
     stream_generator = stream_rates_generator(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS)
