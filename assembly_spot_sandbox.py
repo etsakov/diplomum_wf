@@ -265,7 +265,7 @@ if __name__=="__main__":
     stream_generator = stream_rates_generator(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS)
     structured_price_data = read_stream_data_generator(stream_generator)
     profit_in_pips = iter_trades_pip_margin_indicator(stream_generator, structured_price_data, trades_stream_data)
-    trade_units_available = shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID)
+    
     
     # for i in profit_in_pips:
     #     print('length profit_in_pips: ', len(i))
@@ -282,6 +282,7 @@ if __name__=="__main__":
             continue
         else:
             print('*******************************************')
+            trade_units_available = shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID)
             following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, profit_in_pips, trade_units_available, structured_price_data, INSTRUMENTS)
             print('I am active. The fund is working. Relax!')
             print('*******************************************')
