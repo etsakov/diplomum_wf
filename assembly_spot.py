@@ -246,12 +246,14 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, compa
             else:
                 if trade_profit <= -3:
                     if trade_amount > 0:
+                        # GO LONG
                         take_profit_price = format(ask_rate + 0.0001, '.5f')
                         units_quantity = str(trade_amount)
                         make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
                         time.sleep(3)
                         break
                     else:
+                        # GO SHORT
                         take_profit_price = format(bid_rate - 0.0001, '.5f')
                         units_quantity = str(trade_amount)
                         make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
@@ -260,12 +262,14 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, compa
 
                 elif trade_profit >= 1:
                     if trade_amount > 0:
+                        # GO LONG
                         take_profit_price = format(ask_rate + 0.0002, '.5f')
                         units_quantity = str(trade_amount)
                         make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
                         time.sleep(3)
                         break
                     else:
+                        # GO SHORT
                         take_profit_price = format(bid_rate - 0.0002, '.5f')
                         units_quantity = str(trade_amount)
                         make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)

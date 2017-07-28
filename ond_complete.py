@@ -115,8 +115,8 @@ def get_last_price():
 def choose_direction(ask_price, predicted_price, last_five_average):
 
     print('RBF model prediction: ', predicted_price[0])
-    # print('Linear model prediction: ', predicted_price[1])
-    # print('Polynomial model prediction: ', predicted_price[2])
+    print('Linear model prediction: ', predicted_price[1])
+    print('Polynomial model prediction: ', predicted_price[2])
     print('Last Five Average prediction: ', last_five_average)
     print('Last price', prices[-1])
 
@@ -174,6 +174,6 @@ if __name__=="__main__":
     predicted_price = predict_prices(instances, prices, 50)
     ask_price = get_last_price()[0]
     bid_price = get_last_price()[1]
-    suggestion = choose_direction(ask_price, predicted_price, last_five_average)
-    trade_amount = 1000
-    make_a_deal(suggestion, trade_amount, ask_price, bid_price)
+    choose_direction(ask_price, predicted_price, last_five_average)
+    # trade_amount = 1000
+    # make_a_deal(suggestion, trade_amount, ask_price, bid_price)
