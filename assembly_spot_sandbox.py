@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import numpy as np 
 from sklearn.svm import SVR
 from statistics import mean
+import re
 
 def quasi_stream_trades_info_generator(ACCESS_TOKEN, ACCOUNT_ID):
     # Generates a stream of current transactions info and converts it into the operable lists
@@ -199,8 +200,6 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, profi
 
     for trade in profit_in_pips:
     # trade = next(profit_in_pips)
-        trade_amount = 0
-        trade_profit = 0
         trade_amount = trade[0]['trade_amount']
         trade_profit = trade[0]['trade_' + str(number_of_tr_items)]
         print('Last trade amount: ', trade_amount)
@@ -242,21 +241,32 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, profi
 
 def sleep_sweet():
     # Regulates the timing for the programm
+    # Script doesn't support timezones for now!!!
     time_now_mow = datetime.now()
     today = date.today()
-    next_close_time = today+relativedelta(weekday=FR, hour=23, minutes=59)
-    next_open_time = today+relativedelta(weekday=MO, minutes=1)
+    close_time = today+relativedelta(weekday=FR, hour=23, minutes=59)
+    open_time = today+relativedelta(weekday=MO, minutes=1)
     next_start_trading_time = today+relativedelta(weekday=MO, hour=1)
 
-    if next_close_time < time_now_mow and time_now_mow < next_open_time:
+    if time_now_mow < open_time:
+        close_time = today+relativedelta(weeks=-1, weekday=FR, hour=23, minutes=59)
+    elif time_now_mow < next_start_trading_time:
+        open_time = today+relativedelta(weeks=-1, weekday=MO, minutes=1)
+
+    if close_time < time_now_mow and time_now_mow < open_time:
         command = 'SLEEP'
-    elif next_open_time < time_now_mow and time_now_mow < next_start_trading_time:
+    elif open_time < time_now_mow and time_now_mow < next_start_trading_time:
         command = 'COLLECT'
     else:
         command = 'WORK'
+        return command
 
-    yield command
-    time.sleep(3)
+    print('Time now MOW: ', str(time_now_mow).split('.')[0])
+    print('Close time ', close_time)
+    print('Open time ', open_time)
+    print('Start_trading_time ', next_start_trading_time)
+    print('Command: ', command)
+    return command
 
 
 if __name__=="__main__":
@@ -265,26 +275,38 @@ if __name__=="__main__":
     stream_generator = stream_rates_generator(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS)
     structured_price_data = read_stream_data_generator(stream_generator)
     profit_in_pips = iter_trades_pip_margin_indicator(stream_generator, structured_price_data, trades_stream_data)
+    trade_units_available = shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID)
     
-    
-    # for i in profit_in_pips:
-    #     print('length profit_in_pips: ', len(i))
+    print(sleep_sweet())
+    # for i in sleep_sweet:
     #     print(i)
     # following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, profit_in_pips, trade_units_available, structured_price_data, INSTRUMENTS)
 
-    for h in trades_stream_data:
-        if len(h) == 0:
-            print('*******************************************')
-            create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structured_price_data, INSTRUMENTS)
-            print('The initial order has been put. Good luck!')
-            print('*******************************************')
-            time.sleep(1)
-            continue
-        else:
-            print('*******************************************')
-            trade_units_available = shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID)
-            following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, profit_in_pips, trade_units_available, structured_price_data, INSTRUMENTS)
-            print('I am active. The fund is working. Relax!')
-            print('*******************************************')
+    while True:
+        if sleep_sweet() == 'SLEEP':
+            time.sleep(5)
             pass
+        elif sleep_sweet() == 'COLLECT':
+            stream_generator
+            structured_price_data
+            time.sleep(5)
+        elif sleep_sweet() == 'WORK':
+            for h in trades_stream_data:
+                if len(h) == 0:
+                    print('*******************************************')
+                    trade_units_available
+                    create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structured_price_data, INSTRUMENTS)
+                    print('The initial order has been put. Good luck!')
+                    print('*******************************************')
+                    time.sleep(1)
+                    continue
+                else:
+                    print('*******************************************')
+                    trade_units_available
+                    following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, profit_in_pips, trade_units_available, structured_price_data, INSTRUMENTS)
+                    print('I am active. The fund is working. Relax!')
+                    print('*******************************************')
+                    pass
+        else:
+            print('The Schedule machine is broken')
     # TIME NOW?? datetime.strftime(datetime.utcnow(), '%Y-%m-%dT%H:%M:%SZ')

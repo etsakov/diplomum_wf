@@ -8,12 +8,16 @@ import oandapyV20.endpoints.trades as trades
 import oandapyV20.endpoints.accounts as accounts
 from config import ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+from dateutil.relativedelta import *
+import calendar
 import time
 import ast
 import matplotlib.pyplot as plt
 import numpy as np 
 from sklearn.svm import SVR
+from statistics import mean
+import re
 
 def quasi_stream_trades_info_generator(ACCESS_TOKEN, ACCOUNT_ID):
     # Generates a stream of current transactions info and converts it into the operable lists
@@ -42,12 +46,11 @@ def quasi_stream_trades_info_generator(ACCESS_TOKEN, ACCOUNT_ID):
             trade_list.append(trade_item_info)
 
         yield trade_list
-        time.sleep(1)
 
 
 def stream_rates_generator(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS):
     # Connects to the rate stream and re-generates rate in a stream
-    url = 'https://stream-fxpractice.oanda.com/v3/accounts/{}/pricing/stream'.format(ACCOUNT_ID)
+    url = 'https://stream-fxpractice.oanda.com/v3/accounts/' + ACCOUNT_ID + '/pricing/stream'
     params = {
         'instruments': INSTRUMENTS,
     }
@@ -64,9 +67,9 @@ def stream_rates_generator(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS):
 
 
 def read_stream_data_generator(stream_generator):
-    # Interprets stream info to the operable instances
-    ask_rates = deque(maxlen=150)
-    bid_rates = deque(maxlen=150)
+    # Interprets the raw rate stream info to the stream of operable instances
+    ask_rates = list()
+    bid_rates = list()
 
     for rate in stream_generator:
         if rate['type'] != 'PRICE':
@@ -84,47 +87,43 @@ def read_stream_data_generator(stream_generator):
         
         ask_rates.append(float(rate['asks'][0]['price']))
         bid_rates.append(float(rate['bids'][0]['price']))
+
+        if len(ask_rates) == 151:
+            print('TO DELETE from analysed ASK list:', ask_rates[0])
+            print('TO DELETE from analysed BID list:', bid_rates[0])
+            del(ask_rates[0])
+            del(bid_rates[0])
             
         yield instant_rates, ask_rates, bid_rates
 
 
-def trades_pip_margin_indicator(trades_stream_data, structured_price_data):
-    # Generates profit in PIPs for the last trade to facilitate the decision making for following trades
-    while True:
-        time_now = datetime.utcnow()
+def iter_trades_pip_margin_indicator(stream_generator, structured_price_data, trades_stream_data):
+    # Generates stream data with profit in pips by trade
+    for rate in structured_price_data:
+        time_now = str(datetime.utcnow()).split('.')[0]
         print("Current time: ", time_now)
+        ask_rate = float(rate[0]['ask'])
+        bid_rate =  float(rate[0]['bid'])
 
-        for cur_trades in quasi_stream_trades_info_generator(ACCESS_TOKEN, ACCOUNT_ID):
-            full_trades_data = cur_trades
+        
+        for trades_list in trades_stream_data:
+            number_of_tr_items = len(trades_list)
             break
-
-        stream_generator = stream_rates_generator(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS)
-        structured_price_data = read_stream_data_generator(stream_generator)
-        for rate in structured_price_data:
-            ask_rate = float(rate[0]['ask'])
-            bid_rate =  float(rate[0]['bid'])
-            break
-
         tr_item = 0
-        number_of_tr_items = len(full_trades_data)
         trades_profits = list()
-        for trade_price in full_trades_data:
-            if full_trades_data[tr_item]['currentUnits'] > 0:
-                profit_in_pips = dict()
-                profit_in_pips['trade_' + str(number_of_tr_items - tr_item)] = float(format((bid_rate - full_trades_data[tr_item]['initial_price']) * 10000, '.1f'))
-                profit_in_pips['trade_amount'] = full_trades_data[tr_item]['currentUnits']
-                trades_profits.append(profit_in_pips)
+        for trade_price in trades_stream_data:
+            if trade_price[tr_item]['currentUnits'] > 0:
+                pip_profit_by_trade = bid_rate - trade_price[tr_item]['initial_price']
             else:
-                profit_in_pips = dict()
-                profit_in_pips['trade_' + str(number_of_tr_items - tr_item)] = float(format((full_trades_data[tr_item]['initial_price'] - ask_rate) * 10000, '.1f'))
-                profit_in_pips['trade_amount'] = full_trades_data[tr_item]['currentUnits']
-                trades_profits.append(profit_in_pips)
-            if len(trades_profits) == number_of_tr_items:
-                yield trades_profits
-                time.sleep(1)
-            else:
-                pass
+                pip_profit_by_trade = trade_price[tr_item]['initial_price'] - ask_rate
+            profit_in_pips = {
+                'trade_amount' : trade_price[tr_item]['currentUnits'],
+                'trade_' + str(number_of_tr_items - tr_item) : float(format((pip_profit_by_trade) * 10000, '.1f'))
+            }
+            trades_profits.append(profit_in_pips)
             tr_item += 1
+            break
+        yield trades_profits
 
 
 def shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID):
@@ -158,216 +157,145 @@ def make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_p
     print(r.response)
 
 
-def rate_direction_predictor(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, trade_units_available, structured_price_data, INSTRUMENTS):
+def create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structured_price_data, INSTRUMENTS):
     # Chooses direction for the first deal and makes the first trade
     print('trade_units_available: ', trade_units_available)
-    for tsd_item in trades_stream_data:
-        if len(tsd_item) > 0:
-            break
-        else:
-            for struct_price_data_item in structured_price_data:
-                if len(struct_price_data_item[1]) < 5:
-                    print("Not enough data to choose the direction :((")
-                    continue
-                else:
-                    time.sleep(3)
-                    last_price = float(struct_price_data_item[1][-1])
-                    last_item = 0
-                    last_five_items_sum = 0
-                    for f in struct_price_data_item[1][-5:]:
-                        last_five_items_sum += float(struct_price_data_item[1][-5:][last_item])
-                        last_item += 1
-                    last_five_avg = float(format(float(last_five_items_sum) / 5, '.5f'))
-                    print('Last price', last_price)
-                    print('Last five average', last_five_avg)
-                    if last_price < last_five_avg:
-                        direction = '-'
-                        take_profit_price = format(last_price - 0.0003, '.5f')
-                        break
-                    else:
-                        direction = ''
-                        take_profit_price = format(last_price + 0.0002, '.5f')
-                        break
+    for prices in structured_price_data:
+        ask_prices = prices[1]
+        if len(ask_prices) < 5:
+            print("Not enough data to choose the direction :((")
+            continue
 
-            amount_of_units = int(int(trade_units_available) / 10)
-            units_quantity = direction + str(amount_of_units)
-            make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
-            time.sleep(3)
-            break
+        last_price = float(ask_prices[-1])
+        last_five_prices = ask_prices[-5:]
+        last_five_avg = float(format(mean(last_five_prices), '.5f'))
+        if last_price < last_five_avg:
+            # go short
+            direction = '-'
+            take_profit_price = last_price - 0.0003
+            print('Go Short')
+        else:
+            # go long
+            direction = ''
+            take_profit_price = last_price + 0.0003
+            print('Go Long')
+
+        print('direction: ', direction)
+        print('take_profit_price: ', take_profit_price)
         break
-                    
-        
-        # TO DO - It semms to be a good idea to initiate two parallel programms: to collect the data and to initiate trades.
+
+    take_profit_price_str = format(take_profit_price, '.5f')
+    amount_of_units = int(trade_units_available) // 10
+    units_quantity = amount_of_units
+    make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price_str)
 
 
-def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, compare_heartbeat, trade_units_available, structured_price_data, INSTRUMENTS):
+def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, profit_in_pips, trade_units_available, structured_price_data, INSTRUMENTS):
     # Once the initial trade is open makes further trades
+    
+    for curent_trade_state in trades_stream_data:
+        number_of_tr_items = len(curent_trade_state)
+        print('We currently have ', len(curent_trade_state), ' active trade(s).')
+        break
 
-# !!! The function cannot capture the "positive" graph behaviour - all "positive" following trades are cancelled
-# {'orderCreateTransaction': {'id': '1460', 'instrument': 'EUR_USD', 'userID': 6259640, 
-# 'requestID': '42324510077575889', 'timeInForce': 'FOK', 'time': '2017-07-25T20:36:01.449758667Z', 
-# 'type': 'MARKET_ORDER', 'positionFill': 'DEFAULT', 'takeProfitOnFill': {'price': '1.16455', 
-# 'timeInForce': 'GTC'}, 'reason': 'CLIENT_ORDER', 'batchID': '1460', 'units': '979', 
-# 'accountID': '101-004-6259640-001'}, 'orderCancelTransaction': {'id': '1461', 
-# 'time': '2017-07-25T20:36:01.449758667Z', 'accountID': '101-004-6259640-001', 'userID': 6259640, 
-# 'requestID': '42324510077575889', 'reason': 'LOSING_TAKE_PROFIT', 'batchID': '1460', 
-# 'orderID': '1460', 'type': 'ORDER_CANCEL'}, 'lastTransactionID': '1461', 
-# 'relatedTransactionIDs': ['1460', '1461']}
+    for trade in profit_in_pips:
+    # trade = next(profit_in_pips)
+        trade_amount = trade[0]['trade_amount']
+        trade_profit = trade[0]['trade_' + str(number_of_tr_items)]
+        print('Last trade amount: ', trade_amount)
+        print('Unrealized profit for the last trade: ', trade_profit)
+        break
 
+    for prices in structured_price_data:
+    # prices = next(structured_price_data)
+        ask_rate = prices[1][-1]
+        bid_rate = prices[2][-1]
+        print('Current ASK rate: ', ask_rate)
+        print('Current BID rate: ', bid_rate)
+        print('Trade units left: ', trade_units_available)
+        break
 
-    for tsd_item in trades_stream_data:
-        print('We currently have ', len(tsd_item), ' active transaction(s).')
-        if len(tsd_item) == 0:
-            break
-        else:
-            for trade in compare_heartbeat:
-                unit = len(trade)
-                trade_amount = trade[0]['trade_amount']
-                trade_profit = trade[0]['trade_' + str(unit)]
-                print('Last trade amount: ', trade_amount)
-                print('Unrealized profit for the last trade: ', trade_profit)
-                break
+    if int(trade_units_available) < abs(trade_amount):
+        print('Les jeux sont faits! Rien ne va plus.')
+        return
+    else:
+        print('Money still available')
+    take_profit_price = 0
+    if trade_profit <= -3 and trade_amount > 0:
+        take_profit_price = ask_rate + 0.0001
+    elif trade_profit <= -3 and trade_amount <= 0:
+        take_profit_price = bid_rate - 0.0001
+    elif trade_profit >= 1 and trade_amount > 0:
+        take_profit_price = ask_rate + 0.0001
+    elif trade_profit >= 1 and trade_amount <= 0:
+        take_profit_price = bid_rate - 0.0001
+    else:
+        pass
 
-            for price_lists in structured_price_data:
-                ask_rate = price_lists[1][-1]
-                bid_rate = price_lists[2][-1]
-                print('Current ASK rate: ', ask_rate)
-                print('Current BID rate: ', bid_rate)
-                break
-
-            print('Trade units left: ', trade_units_available)
-
-            if int(trade_units_available) < abs(trade_amount):
-                print('********************************')
-                print('!!!Not enough units to trade!!!')
-                print('********************************')
-                break
-
-            else:
-                if trade_profit <= -3:
-                    if trade_amount > 0:
-                        # GO LONG
-                        take_profit_price = format(ask_rate + 0.0001, '.5f')
-                        units_quantity = str(trade_amount)
-                        make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
-                        time.sleep(3)
-                        break
-                    else:
-                        # GO SHORT
-                        take_profit_price = format(bid_rate - 0.0001, '.5f')
-                        units_quantity = str(trade_amount)
-                        make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
-                        time.sleep(3)
-                        break
-
-                elif trade_profit >= 1:
-                    if trade_amount > 0:
-                        # GO LONG
-                        take_profit_price = format(ask_rate + 0.0002, '.5f')
-                        units_quantity = str(trade_amount)
-                        make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
-                        time.sleep(3)
-                        break
-                    else:
-                        # GO SHORT
-                        take_profit_price = format(bid_rate - 0.0002, '.5f')
-                        units_quantity = str(trade_amount)
-                        make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
-                        time.sleep(3)
-                        break
-                else:
-                    break
+    if take_profit_price == 0:
+        print('Not sufficient margine for a support trade')
+        pass
+    else:
+        make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, str(trade_amount), format(take_profit_price, '.5f'))
 
 
 def sleep_sweet():
     # Regulates the timing for the programm
+    # Script doesn't support timezones for now!!!
     time_now_mow = datetime.now()
     today = date.today()
-    next_close_time = today+relativedelta(weekday=FR, hour=23, minutes=59)
-    next_open_time = today+relativedelta(weekday=MO, minutes=1)
+    close_time = today+relativedelta(weekday=FR, hour=23, minutes=59)
+    open_time = today+relativedelta(weekday=MO, minutes=1)
     next_start_trading_time = today+relativedelta(weekday=MO, hour=1)
 
-    if next_close_time < time_now_mow and time_now_mow < next_open_time:
+    if time_now_mow < open_time:
+        close_time = today+relativedelta(weeks=-1, weekday=FR, hour=23, minutes=59)
+    elif time_now_mow < next_start_trading_time:
+        open_time = today+relativedelta(weeks=-1, weekday=MO, minutes=1)
+
+    if close_time < time_now_mow and time_now_mow < open_time:
         command = 'SLEEP'
-    elif next_open_time < time_now_mow and time_now_mow < next_start_trading_time:
+    elif open_time < time_now_mow and time_now_mow < next_start_trading_time:
         command = 'COLLECT'
     else:
         command = 'WORK'
-    yield command
+        return command
+
+    print('Time now MOW: ', str(time_now_mow).split('.')[0])
+    print('Close time ', close_time)
+    print('Open time ', open_time)
+    print('Start_trading_time ', next_start_trading_time)
+    print('Command: ', command)
+    return command
 
 
 if __name__=="__main__":
+    # trade_state = fetch_quasi_trades_info(ACCESS_TOKEN, ACCOUNT_ID)
     trades_stream_data = quasi_stream_trades_info_generator(ACCESS_TOKEN, ACCOUNT_ID)
     stream_generator = stream_rates_generator(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS)
     structured_price_data = read_stream_data_generator(stream_generator)
-    compare_heartbeat = trades_pip_margin_indicator(trades_stream_data, structured_price_data)
+    profit_in_pips = iter_trades_pip_margin_indicator(stream_generator, structured_price_data, trades_stream_data)
     trade_units_available = shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID)
     
+    print(sleep_sweet())
+    # for i in sleep_sweet:
+    #     print(i)
+    # following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, profit_in_pips, trade_units_available, structured_price_data, INSTRUMENTS)
+
+
     for h in trades_stream_data:
         if len(h) == 0:
             print('*******************************************')
-            rate_direction_predictor(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, trade_units_available, structured_price_data, INSTRUMENTS)
+            trade_units_available
+            create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structured_price_data, INSTRUMENTS)
             print('The initial order has been put. Good luck!')
             print('*******************************************')
-            pass
+            time.sleep(1)
+            continue
         else:
             print('*******************************************')
-            following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, compare_heartbeat, trade_units_available, structured_price_data, INSTRUMENTS)
+            trade_units_available
+            following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trades_stream_data, profit_in_pips, trade_units_available, structured_price_data, INSTRUMENTS)
             print('I am active. The fund is working. Relax!')
             print('*******************************************')
             pass
-    # TIME NOW?? datetime.strftime(datetime.utcnow(), '%Y-%m-%dT%H:%M:%SZ')
-
-# ******************************************************************
-# 
-# Unusual behaviour - sometimes the function doesn't set the right Take Profit value
-# Moreover it overwrites the existing value with the wrong one.
-# 
-# ******************************************************************
-# ERROR-ERROR-ERROR
-#     Traceback (most recent call last):
-#   File "c:\projects\Diplomum\env\lib\site-packages\urllib3\response.py", line 302, in _error_catcher
-#     yield
-#   File "c:\projects\Diplomum\env\lib\site-packages\urllib3\response.py", line 594, in read_chunked
-#     self._update_chunk_length()
-#   File "c:\projects\Diplomum\env\lib\site-packages\urllib3\response.py", line 536, in _update_chunk_length
-#     line = self._fp.fp.readline()
-#   File "C:\Python34\lib\socket.py", line 378, in readinto
-#     return self._sock.recv_into(b)
-#   File "C:\Python34\lib\ssl.py", line 748, in recv_into
-#     return self.read(nbytes, buffer)
-#   File "C:\Python34\lib\ssl.py", line 620, in read
-#     v = self._sslobj.read(len, buffer)
-# ConnectionResetError: [WinError 10054] Удаленный хост принудительно разорвал существующее подключение
-
-# During handling of the above exception, another exception occurred:
-
-# Traceback (most recent call last):
-#   File "c:\projects\Diplomum\env\lib\site-packages\requests\models.py", line 739, in generate
-#     for chunk in self.raw.stream(chunk_size, decode_content=True):
-#   File "c:\projects\Diplomum\env\lib\site-packages\urllib3\response.py", line 432, in stream
-#     for line in self.read_chunked(amt, decode_content=decode_content):
-#   File "c:\projects\Diplomum\env\lib\site-packages\urllib3\response.py", line 622, in read_chunked
-#     self._original_response.close()
-#   File "C:\Python34\lib\contextlib.py", line 77, in __exit__
-#     self.gen.throw(type, value, traceback)
-#   File "c:\projects\Diplomum\env\lib\site-packages\urllib3\response.py", line 320, in _error_catcher
-#     raise ProtocolError('Connection broken: %r' % e, e)
-# urllib3.exceptions.ProtocolError: ("Connection broken: ConnectionResetError(10054, 'Удаленный хост принудительно разорвал существующее подключение', None, 10054, None)", ConnectionResetError(10054, 'Удаленный хост принудительно разорвал существующее подключение', None, 10054, None))
-
-# During handling of the above exception, another exception occurred:
-
-# Traceback (most recent call last):
-#   File "assembly_spot.py", line 300, in <module>
-#     following_trades_creator(trades_stream_data, compare_heartbeat, trade_units_available, structured_price_data, INSTRUMENTS)
-#   File "assembly_spot.py", line 220, in following_trades_creator
-#     for price_lists in structured_price_data:
-#   File "assembly_spot.py", line 73, in read_stream_data_generator
-#     for rate in stream_generator:
-#   File "assembly_spot.py", line 61, in stream_rates_generator
-#     for line in r.iter_lines():
-#   File "c:\projects\Diplomum\env\lib\site-packages\requests\models.py", line 783, in iter_lines
-#     for chunk in self.iter_content(chunk_size=chunk_size, decode_unicode=decode_unicode):
-#   File "c:\projects\Diplomum\env\lib\site-packages\requests\models.py", line 742, in generate
-#     raise ChunkedEncodingError(e)
-# requests.exceptions.ChunkedEncodingError: ("Connection broken: ConnectionResetError(10054, 'Удаленный хост принудительно разорвал существующее подключение', None, 10054, None)", ConnectionResetError(10054, 'Удаленный хост принудительно разорвал существующее подключение', None, 10054, None))
