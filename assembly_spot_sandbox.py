@@ -97,8 +97,8 @@ def read_stream_data_generator(stream_generator):
         bid_rates.append(float(rate['bids'][0]['price']))
 
         if len(ask_rates) == 151:
-            print('TO DELETE from analysed ASK list:', ask_rates[0])
-            print('TO DELETE from analysed BID list:', bid_rates[0])
+            # print('TO DELETE from analysed ASK list:', ask_rates[0])
+            # print('TO DELETE from analysed BID list:', bid_rates[0])
             del(ask_rates[0])
             del(bid_rates[0])
             
@@ -265,11 +265,12 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, profit_in_pi
     else:
         pass
 
-    print('Take Profit condition: ', take_profit_price)
+    
     if take_profit_price == 0:
-        print('Not sufficient margine for another support trade')
+        print('No need for another trade')
         pass
     else:
+        print('Take Profit condition: ', take_profit_price)
         units_quantity = str(trade_amount)
         take_profit_price = format(take_profit_price, '.5f')
         print('TRADE SUPPOSED TO BE MADE')
