@@ -161,34 +161,34 @@ def make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_p
     print(r.response)
 
 
-def sleep_sweet():
+# def sleep_sweet():
     # Regulates the timing for the programm
     # Script doesn't support timezones for now!!!
-    time_now_mow = datetime.now()
-    today = date.today()
-    close_time = today+relativedelta(weekday=FR, hour=23, minutes=59)
-    open_time = today+relativedelta(weekday=MO, minutes=1)
-    next_start_trading_time = today+relativedelta(weekday=MO, hour=1)
+    # time_now_mow = datetime.now()
+    # today = date.today()
+    # close_time = today+relativedelta(weekday=FR, hour=23, minutes=59)
+    # open_time = today+relativedelta(weekday=MO, minutes=1)
+    # next_start_trading_time = today+relativedelta(weekday=MO, hour=1)
 
-    if time_now_mow < open_time:
-        close_time = today+relativedelta(weeks=-1, weekday=FR, hour=23, minutes=59)
-    elif time_now_mow < next_start_trading_time:
-        open_time = today+relativedelta(weeks=-1, weekday=MO, minutes=1)
+    # if time_now_mow < open_time:
+    #     close_time = today+relativedelta(weeks=-1, weekday=FR, hour=23, minutes=59)
+    # elif time_now_mow < next_start_trading_time:
+    #     open_time = today+relativedelta(weeks=-1, weekday=MO, minutes=1)
 
-    if close_time < time_now_mow and time_now_mow < open_time:
-        command = 'SLEEP'
-    elif open_time < time_now_mow and time_now_mow < next_start_trading_time:
-        command = 'COLLECT'
-    else:
-        command = 'WORK'
-        return command
+    # if close_time < time_now_mow and time_now_mow < open_time:
+    #     command = 'SLEEP'
+    # elif open_time < time_now_mow and time_now_mow < next_start_trading_time:
+    #     command = 'COLLECT'
+    # else:
+    #     command = 'WORK'
+    #     return command
 
-    print('Time now MOW: ', str(time_now_mow).split('.')[0])
-    print('Close time ', close_time)
-    print('Open time ', open_time)
-    print('Start_trading_time ', next_start_trading_time)
-    print('Command: ', command)
-    return command
+    # print('Time now MOW: ', str(time_now_mow).split('.')[0])
+    # print('Close time ', close_time)
+    # print('Open time ', open_time)
+    # print('Start_trading_time ', next_start_trading_time)
+    # print('Command: ', command)
+    # return command
 
 
 def create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structured_price_data, INSTRUMENTS):
@@ -211,7 +211,7 @@ def create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structur
         print('Last price BID: ', last_price_bid)
         print('Las FIVE average: ', last_five_avg)
         
-        if last_price_ask < last_five_avg:
+        if last_price_ask > last_five_avg:
             # go short
             direction = '-'
             take_profit_price = last_price_bid - 0.0003
@@ -234,6 +234,7 @@ def create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structur
 
 def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, profit_in_pips, trade_units_available, stream_generator, INSTRUMENTS):
     # Once the initial trade is open makes further trades
+    # TO DO - link following trades to the initial trade with similar steps logics
     for prices in stream_generator:
         ask_rate = float(prices[0]['ask'])
         bid_rate = float(prices[0]['bid'])
@@ -290,36 +291,37 @@ if __name__=="__main__":
     # following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, profit_in_pips, trade_units_available, structured_price_data, INSTRUMENTS)
 
     while True:
-        if sleep_sweet() == 'SLEEP':
-            time.sleep(5)
-            pass
-        elif sleep_sweet() == 'COLLECT':
-            # stream_generator
-            structured_price_data
-            time.sleep(5)
-        elif sleep_sweet() == 'WORK':
-            trade_state = fetch_quasi_trades_info(ACCESS_TOKEN, ACCOUNT_ID)
-            trade_units_available = shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID)
+    #     if sleep_sweet() == 'SLEEP':
+    #         time.sleep(5)
+    #         pass
+    #     elif sleep_sweet() == 'COLLECT':
+    #         # stream_generator
+    #         structured_price_data
+    #         time.sleep(5)
+    #     elif sleep_sweet() == 'WORK':
+
+        trade_state = fetch_quasi_trades_info(ACCESS_TOKEN, ACCOUNT_ID)
+        trade_units_available = shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID)
             # for h in trade_state:
-            if len(trade_state) == 0:
-                print('*******************************************')
-                print('Trade units available: ', trade_units_available)
-                create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structured_price_data, INSTRUMENTS)
-                print('*******************************************')
-                time.sleep(1)
-                pass
-            else:
-                print('*******************************************')
-                trade_state
-                trade_units_available
-                # print('trade_state', trade_state)
-                profit_in_pips = iter_trades_pip_margin_indicator(stream_generator, trade_state)
-                # print('profit_in_pips', profit_in_pips)
-                # print('trade_units_available', trade_units_available)
-                following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, profit_in_pips, trade_units_available, structured_price_data, INSTRUMENTS)
-                print('I am active. The fund is working. Relax!')
-                print('*******************************************')
-                pass
+        if len(trade_state) == 0:
+            print('*******************************************')
+            print('Trade units available: ', trade_units_available)
+            create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structured_price_data, INSTRUMENTS)
+            print('*******************************************')
+            time.sleep(1)
+            pass
         else:
-            print('The Schedule machine is broken')
+            print('*******************************************')
+            trade_state
+            trade_units_available
+            # print('trade_state', trade_state)
+            profit_in_pips = iter_trades_pip_margin_indicator(stream_generator, trade_state)
+            # print('profit_in_pips', profit_in_pips)
+            # print('trade_units_available', trade_units_available)
+            following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, profit_in_pips, trade_units_available, structured_price_data, INSTRUMENTS)
+            print('I am active. The fund is working. Relax!')
+            print('*******************************************')
+            pass
+        # else:
+        #     print('The Schedule machine is broken')
     # TIME NOW?? datetime.strftime(datetime.utcnow(), '%Y-%m-%dT%H:%M:%SZ')

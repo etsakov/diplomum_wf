@@ -6,7 +6,7 @@ import oandapyV20.endpoints.trades as trades
 from config import ACCESS_TOKEN, ACCOUNT_ID
 import time
 
-trade_id = '441'
+trade_id = '4704'
 
 client = oandapyV20.API(access_token=ACCESS_TOKEN)
 r = trades.TradeDetails(accountID=ACCOUNT_ID, tradeID=trade_id)
