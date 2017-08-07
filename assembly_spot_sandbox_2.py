@@ -31,7 +31,7 @@ def fetch_trades_info(ACCESS_TOKEN, ACCOUNT_ID):
     for trade in trades_data:
         open_datetime = datetime.strptime(trade['openTime'].split('.')[0], '%Y-%m-%dT%H:%M:%S')
         trade_item_info = {
-            'tradeID' : trade['takeProfitOrder']['tradeID'],
+            'tradeID' : trade['id'],
             'state' : trade['state'],
             'instrument' : trade['instrument'],
             'open_time' : datetime.strftime(open_datetime, '%Y-%m-%dT%H:%M:%SZ'),

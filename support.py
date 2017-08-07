@@ -24,14 +24,15 @@ def fetch_trades_info(ACCESS_TOKEN, ACCOUNT_ID):
     for trade in trades_data:
         open_datetime = datetime.strptime(trade['openTime'].split('.')[0], '%Y-%m-%dT%H:%M:%S')
         trade_item_info = {
-            'tradeID' : trade['takeProfitOrder']['tradeID'],
+            'tradeID' : trade['id'],
             'open_time' : open_datetime,
             'currentUnits' : int(trade['currentUnits']),
-            'take_profit_price' : float(trade['takeProfitOrder']['price']),
+            'trade_price' : float(trade['price']),
+            # 'take_profit_price' : float(trade['takeProfitOrder']['price']),
             # 'unrealized_PL' : float(trade['unrealizedPL']),
             # 'financing' : float(trade['financing']),
             'net_profit' : float(trade['unrealizedPL']) + float(trade['financing']),
-            'comment' : trade['clientExtensions']['comment']
+            # 'comment' : trade['clientExtensions']['comment']
             # 'trade_status' : 'suspended'
         }
         if datetime.now() - timedelta(hours=60) > open_datetime:
@@ -42,6 +43,23 @@ def fetch_trades_info(ACCESS_TOKEN, ACCOUNT_ID):
 
     return trade_list
 
+def get_market_rates(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS):
+    # Connects to the rate stream and re-generates rate in a stream
+    url = 'https://stream-fxpractice.oanda.com/v3/accounts/' + ACCOUNT_ID + '/pricing/stream'
+    params = {
+        'instruments': INSTRUMENTS,
+    }
+    head = {'Content-type':"application/json",
+            'Accept-Datetime-Format':"RFC3339",
+            'Authorization':"Bearer " + ACCESS_TOKEN}
+
+    r = requests.get(url, params = params, headers = head, stream = True)
+    for line in r.iter_lines():
+        if line:
+            decoded_line = line.decode('utf-8')
+            response = json.loads(decoded_line)
+            if response['type'] != 'HEARTBEAT':
+                return response
 
 def shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID):
     # Gives the amount of trade units still available for trade
@@ -52,7 +70,7 @@ def shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID):
     return units_available
 
 
-def make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity):
+def make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price):
     # Just trading engine for the usage in following functions
     data = {
             "order": {
@@ -61,13 +79,13 @@ def make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity):
             "units": units_quantity,  
             "type": "MARKET",
             "positionFill": "DEFAULT",
-            "clientExtensions": {
-                "comment": "SUPPORT"
-            }
-            # "takeProfitOnFill": {
-            #     "timeInForce": "GTC",
-            #     "price": take_profit_price
+            # "clientExtensions": {
+            #     "comment": "SUPPORT"
             # }
+            "takeProfitOnFill": {
+                "timeInForce": "GTC",
+                "price": take_profit_price
+            }
         }
     }
 
@@ -89,14 +107,19 @@ def transactions_close(ACCESS_TOKEN, ACCOUNT_ID, units_quantity, trade_id):
     print(r.response)
 
 
-def get_support_trades(trades_info, units_available):
+def get_support_trades(trades_info, units_available, market_rates):
     # Describes logics for the support trades
     for suspended_trade in trades_info:
-        if suspended_trade['trade_status'] == 'suspended':
+        if suspended_trade['trade_status'] == 'suspended' and len(trades_info) < 4:
             count_down = 4
-            while count_down != 0 and suspended_trade['currentUnits'] < units_available:
+            while count_down != 0 and suspended_trade['currentUnits'] < int(units_available):
                 units_quantity = suspended_trade['currentUnits']
-                make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity)
+                if units_quantity > 0:
+                    take_profit_price = ask_rate + 0.0050
+                else:
+                    take_profit_price = bid_rate - 0.0050
+                 
+                make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
                 count_down -= 1
         else:
             pass
@@ -106,7 +129,7 @@ def merge_trades(trades_info):
     # Creates the joint list for suspended and support trades
     suspended_and_support_trades = list()
     for suspended_trade in trades_info:
-        if suspended_trade['trade_status'] == 'suspended' or suspended_trade['trade_status'] == 'SUPPORT':
+        if suspended_trade['trade_status'] == 'suspended' or suspended_trade['trade_status'] == 'fresh':
             suspended_and_support_trades.append(suspended_trade)
 
     return suspended_and_support_trades
@@ -121,26 +144,45 @@ def count_overall_sum(suspended_and_support_trades):
 
 
 if __name__ == "__main__":
+    market_rates = get_market_rates(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS)
     trades_info = fetch_trades_info(ACCESS_TOKEN, ACCOUNT_ID)
     units_available = shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID)
-    create_support_trades = get_support_trades(trades_info, units_available)
+    create_support_trades = get_support_trades(trades_info, units_available, market_rates)
     suspended_and_support_trades = merge_trades(trades_info)
     suspend_support_level = count_overall_sum(suspended_and_support_trades)
     print('TRADES INFO', trades_info)
     print('UNITS AVAILABLE: ', units_available)
-    trades_info
-    units_available
-    create_support_trades
+    # units_available
+    # create_support_trades
     # Lear how to make a particular amount of trades!!!
+    # suspended_and_support_trades
+    # suspend_support_level
+    # print('SUSPENDED AND SUPPORT: ', suspended_and_support_trades)
+    # print('SUSPEND/SUPPORT LEVEL: ', suspend_support_level)
     while True:
+        market_rates = get_market_rates(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS)
+        trades_info = fetch_trades_info(ACCESS_TOKEN, ACCOUNT_ID)
+        units_available = shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID)
+        create_support_trades = get_support_trades(trades_info, units_available, market_rates)
+        suspended_and_support_trades = merge_trades(trades_info)
+        suspend_support_level = count_overall_sum(suspended_and_support_trades)
+        print('TRADES INFO', trades_info)
+        print('UNITS AVAILABLE: ', units_available)
+        market_rates
+        trades_info
+        units_available
+        create_support_trades
         suspended_and_support_trades
         suspend_support_level
-        print('SUSPENDED AND SUPPORT: ', suspended_and_support_trades)
-        print('SUSPEND/SUPPORT LEVEL: ', suspend_support_level)
         if suspend_support_level > 0:
             for item in suspended_and_support_trades:
-                units_quantity = item['currentUnits']
+                print('ITEM: ', item)
+                units_quantity = str(item['currentUnits']).replace('-', '')
+                print(type(units_quantity))
                 trade_id = item['tradeID']
                 transactions_close(ACCESS_TOKEN, ACCOUNT_ID, units_quantity, trade_id)
+        else:
+            print("Current support level too low: ", suspend_support_level)
+        time.sleep(2)
     # print(datetime.now() - trades_info[0]['open_time'])
 
