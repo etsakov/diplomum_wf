@@ -273,12 +273,13 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, profit_in_pi
     take_profit_price = 0
     if first_trade_profit <= (-2 * number_of_tr_items) and last_trade_profit <= -2 and trade_amount > 0:
         take_profit_price = ask_rate + 0.0001
+        # take_profit_price = ask_rate + 0.0001 * number_of_tr_items
     elif first_trade_profit <= (-2 * number_of_tr_items) and last_trade_profit <= -2 and trade_amount <= 0:
         take_profit_price = bid_rate - 0.0001
-    # elif last_trade_profit >= 0.1 and trade_amount > 0:
-    #     take_profit_price = ask_rate + 0.0001
-    # elif last_trade_profit >= 0.1 and trade_amount <= 0:
-    #     take_profit_price = bid_rate - 0.0001
+    elif last_trade_profit >= 2 and trade_amount > 0:
+        take_profit_price = ask_rate + 0.0001
+    elif last_trade_profit >= 2 and trade_amount <= 0:
+        take_profit_price = bid_rate - 0.0001
     else:
         pass
     
