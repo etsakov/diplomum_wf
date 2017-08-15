@@ -142,13 +142,13 @@ def shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID):
     return units_available
 
 
-def make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price):
+def make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price, direction):
     # Just trading engine for the usage in following functions
     data = {
             "order": {
             "timeInForce": "FOK",
             "instrument": INSTRUMENTS,
-            "units": units_quantity,  
+            "units": direction + units_quantity,  
             "type": "MARKET",
             "positionFill": "DEFAULT",
             "takeProfitOnFill": {
@@ -202,7 +202,7 @@ def create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structur
         ask_prices = prices[1]
         bid_prices = prices[2]
         # take_profit_price = 0
-        if len(ask_prices) < 10:
+        if len(ask_prices) < 5:
             print(len(ask_prices))
             print("Not enough data to choose the direction :((")
             continue
@@ -216,33 +216,34 @@ def create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structur
 
     for price in stream_generator:
         last_price_ask = float(price['asks'][0]['price'])
-        last_price_bid = float(price['asks'][0]['price'])
+        print('ASK: ', last_price_ask)
+        last_price_bid = float(price['bids'][0]['price'])
+        print('BID: ', last_price_bid)
         break
 
 # TEST - TEST - TEST
-    direction = '-'
-    take_profit_price = last_price_bid - 0.0002
-    print('Go Short')
-    
-    # if last_price_ask > last_five_avg:
-    #     # go short
-    #     direction = '-'
-    #     take_profit_price = last_price_bid - 0.0002
-    #     print('Go Short')
-    # else:
-    #     # go long
-    #     direction = ''
-    #     take_profit_price = last_price_ask + 0.0002
-    #     print('Go Long')
-# TEST - TEST - TEST
+    # direction = '-'
+    # take_profit_price = last_price_bid - 0.0002
+    # print('Go Short')
+ # TEST - TEST - TEST   
+    if last_price_ask > last_five_avg:
+        # go short
+        direction = '-'
+        take_profit_price = last_price_bid - 0.0002
+        print('Go Short')
+    else:
+        # go long
+        direction = ''
+        take_profit_price = last_price_ask + 0.0002
+        print('Go Long')
 
-    print('Direction: ', direction)
+
     print('Take profit price: ', take_profit_price)
     units_quantity = str(int(trade_units_available) // 10)
     print('units_quantity: ', units_quantity)
     take_profit_price = format(take_profit_price, '.5f')
     print('Take profit price: ', take_profit_price)
-    make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
+    make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price, direction)
     print('The initial order has been put. Good luck!')
         
 
@@ -288,7 +289,8 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, profit_in_pi
         units_quantity = str(int(trade_amount * 0.92))
         take_profit_price = format(take_profit_price, '.5f')
         print('TRADE SUPPOSED TO BE MADE')
-        make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
+        direction = ''
+        make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price, direction)
         pass
 
 if __name__=="__main__":
@@ -319,7 +321,7 @@ if __name__=="__main__":
         if len(trade_state) == 0:
             print('*******************************************')
             print('Trade units available: ', trade_units_available)
-            create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structured_price_data, INSTRUMENTS)
+            create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structured_price_data, stream_generator, INSTRUMENTS)
             print('*******************************************')
             time.sleep(1)
             pass
