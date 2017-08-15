@@ -129,8 +129,8 @@ def merge_trades(trades_info):
     # Creates the joint list for suspended and support trades
     suspended_and_support_trades = list()
     for suspended_trade in trades_info:
-        if suspended_trade['trade_status'] == 'suspended' or suspended_trade['trade_status'] == 'fresh':
-            suspended_and_support_trades.append(suspended_trade)
+        # if suspended_trade['trade_status'] == 'suspended' or suspended_trade['trade_status'] == 'fresh':
+        suspended_and_support_trades.append(suspended_trade)
 
     return suspended_and_support_trades
 
@@ -150,8 +150,8 @@ if __name__ == "__main__":
     create_support_trades = get_support_trades(trades_info, units_available, market_rates)
     suspended_and_support_trades = merge_trades(trades_info)
     suspend_support_level = count_overall_sum(suspended_and_support_trades)
-    print('TRADES INFO', trades_info)
-    print('UNITS AVAILABLE: ', units_available)
+    # print('TRADES INFO', trades_info)
+    # print('UNITS AVAILABLE: ', units_available)
     # units_available
     # create_support_trades
     # Lear how to make a particular amount of trades!!!
@@ -161,28 +161,35 @@ if __name__ == "__main__":
     # print('SUSPEND/SUPPORT LEVEL: ', suspend_support_level)
     while True:
         market_rates = get_market_rates(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS)
-        trades_info = fetch_trades_info(ACCESS_TOKEN, ACCOUNT_ID)
-        units_available = shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID)
-        create_support_trades = get_support_trades(trades_info, units_available, market_rates)
-        suspended_and_support_trades = merge_trades(trades_info)
-        suspend_support_level = count_overall_sum(suspended_and_support_trades)
-        print('TRADES INFO', trades_info)
-        print('UNITS AVAILABLE: ', units_available)
-        market_rates
-        trades_info
-        units_available
-        create_support_trades
-        suspended_and_support_trades
-        suspend_support_level
-        if suspend_support_level > 0:
-            for item in suspended_and_support_trades:
-                print('ITEM: ', item)
-                units_quantity = str(item['currentUnits']).replace('-', '')
-                print(type(units_quantity))
-                trade_id = item['tradeID']
-                transactions_close(ACCESS_TOKEN, ACCOUNT_ID, units_quantity, trade_id)
-        else:
-            print("Current support level too low: ", suspend_support_level)
+        print(market_rates)
+        print('ASK: ', type(market_rates['asks'][0]['price']))
+        print('BID: ', market_rates['bids'][0]['price'])
+        # trades_info = fetch_trades_info(ACCESS_TOKEN, ACCOUNT_ID)
+        # units_available = shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID)
+        # create_support_trades = get_support_trades(trades_info, units_available, market_rates)
+        # suspended_and_support_trades = merge_trades(trades_info)
+        # suspend_support_level = count_overall_sum(suspended_and_support_trades)
+        # print('TRADES INFO', trades_info)
+        # print('UNITS AVAILABLE: ', units_available)
+        # market_rates
+        # trades_info
+        # units_available
+        # create_support_trades
+        # suspended_and_support_trades
+        # suspend_support_level
+        # # if suspend_support_level > 0:
+        # for item in suspended_and_support_trades:
+        #     if trades_info['trade_status'] == 'suspended':
+        #         if suspend_support_level > 0:
+        #             print('ITEM: ', item)
+        #             units_quantity = str(item['currentUnits']).replace('-', '')
+        #             print(type(units_quantity))
+        #             trade_id = item['tradeID']
+        #             transactions_close(ACCESS_TOKEN, ACCOUNT_ID, units_quantity, trade_id)
+        #         else:
+        #             print("Current support level too low: ", suspend_support_level)
+        #     else:
+        #         print("No suspended trades")
         time.sleep(2)
     # print(datetime.now() - trades_info[0]['open_time'])
 

@@ -208,6 +208,7 @@ def create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structur
             continue
 
         last_five_prices = ask_prices[-5:]
+        print('Las FIVE prices: ', last_five_prices)
         last_five_avg = float(format(mean(last_five_prices), '.5f'))
         # print('Last price ASK: ', last_price_ask)
         # print('Last price BID: ', last_price_bid)
@@ -229,12 +230,12 @@ def create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structur
     if last_price_ask > last_five_avg:
         # go short
         direction = '-'
-        take_profit_price = last_price_bid - 0.0002
+        take_profit_price = last_price_bid - 0.0001
         print('Go Short')
     else:
         # go long
         direction = ''
-        take_profit_price = last_price_ask + 0.0002
+        take_profit_price = last_price_ask + 0.0001
         print('Go Long')
 
 
@@ -274,10 +275,10 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, profit_in_pi
         take_profit_price = ask_rate + 0.0001
     elif first_trade_profit <= (-2 * number_of_tr_items) and last_trade_profit <= -2 and trade_amount <= 0:
         take_profit_price = bid_rate - 0.0001
-    elif last_trade_profit >= 1 and trade_amount > 0:
-        take_profit_price = ask_rate + 0.00003
-    elif last_trade_profit >= 1 and trade_amount <= 0:
-        take_profit_price = bid_rate - 0.00003
+    # elif last_trade_profit >= 0.1 and trade_amount > 0:
+    #     take_profit_price = ask_rate + 0.0001
+    # elif last_trade_profit >= 0.1 and trade_amount <= 0:
+    #     take_profit_price = bid_rate - 0.0001
     else:
         pass
     
