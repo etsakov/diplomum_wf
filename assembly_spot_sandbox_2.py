@@ -125,7 +125,7 @@ def iter_trades_pip_margin_indicator(stream_generator, trade_state):
         pip_profit_first_trade = trade_state[-1]['initial_price'] - ask_rate
         pip_profit_last_trade = trade_state[0]['initial_price'] - ask_rate
     profit_in_pips = {
-        'trade_amount' : trade_state[-1]['currentUnits'],
+        'trade_amount' : trade_state[0]['currentUnits'],
         'first_trade' : float(format((pip_profit_first_trade) * 10000, '.1f')),
         'last_trade' : float(format((pip_profit_last_trade) * 10000, '.1f'))
     }
@@ -194,7 +194,7 @@ def make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_p
     # return command
 
 
-def create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structured_price_data, INSTRUMENTS):
+def create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structured_price_data, stream_generator, INSTRUMENTS):
     # Chooses direction for the first deal and makes the first trade
     print('trade_units_available: ', trade_units_available)
     # take_profit_price = 0
@@ -202,45 +202,55 @@ def create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structur
         ask_prices = prices[1]
         bid_prices = prices[2]
         # take_profit_price = 0
-        if len(ask_prices) < 5:
+        if len(ask_prices) < 10:
             print(len(ask_prices))
             print("Not enough data to choose the direction :((")
             continue
-        last_price_ask = float(ask_prices[-1])
-        last_price_bid = float(bid_prices[-1])
+
         last_five_prices = ask_prices[-5:]
         last_five_avg = float(format(mean(last_five_prices), '.5f'))
-        print('Last price ASK: ', last_price_ask)
-        print('Last price BID: ', last_price_bid)
+        # print('Last price ASK: ', last_price_ask)
+        # print('Last price BID: ', last_price_bid)
         print('Las FIVE average: ', last_five_avg)
-        
-        if last_price_ask > last_five_avg:
-            # go short
-            direction = '-'
-            take_profit_price = last_price_bid - 0.0002
-            print('Go Short')
-        else:
-            # go long
-            direction = ''
-            take_profit_price = last_price_ask + 0.0002
-            print('Go Long')
-
-        print('Direction: ', direction)
-        print('Take profit price: ', take_profit_price)
-        units_quantity = str(int(trade_units_available) // 10)
-        print('units_quantity: ', units_quantity)
-        take_profit_price = format(take_profit_price, '.5f')
-        print('Take profit price: ', take_profit_price)
-        make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
-        print('The initial order has been put. Good luck!')
         break
+
+    for price in stream_generator:
+        last_price_ask = float(price['asks'][0]['price'])
+        last_price_bid = float(price['asks'][0]['price'])
+        break
+
+# TEST - TEST - TEST
+    direction = '-'
+    take_profit_price = last_price_bid - 0.0002
+    print('Go Short')
+    
+    # if last_price_ask > last_five_avg:
+    #     # go short
+    #     direction = '-'
+    #     take_profit_price = last_price_bid - 0.0002
+    #     print('Go Short')
+    # else:
+    #     # go long
+    #     direction = ''
+    #     take_profit_price = last_price_ask + 0.0002
+    #     print('Go Long')
+# TEST - TEST - TEST
+
+    print('Direction: ', direction)
+    print('Take profit price: ', take_profit_price)
+    units_quantity = str(int(trade_units_available) // 10)
+    print('units_quantity: ', units_quantity)
+    take_profit_price = format(take_profit_price, '.5f')
+    print('Take profit price: ', take_profit_price)
+    make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
+    print('The initial order has been put. Good luck!')
+        
 
 def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, profit_in_pips, trade_units_available, stream_generator, INSTRUMENTS):
     # Once the initial trade is open makes further trades
-    # TO DO - link following trades to the initial trade with similar steps logics
-    for prices in stream_generator:
-        ask_rate = float(prices[0]['ask'])
-        bid_rate = float(prices[0]['bid'])
+    for price in stream_generator:
+        ask_rate = float(price['asks'][0]['price'])
+        bid_rate = float(price['bids'][0]['price'])
         break
     number_of_tr_items = len(trade_state)
     trade_amount = profit_in_pips['trade_amount']
@@ -253,20 +263,20 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, profit_in_pi
     print('Current BID rate: ', format(bid_rate, '.5f'))
     print('Trade units left: ', trade_units_available)
 
-    if int(trade_units_available) < abs(trade_amount):
+    if int(trade_units_available) < abs(int(trade_amount * 0.92)):
         print('Les jeux sont faits! Rien ne va plus.')
         return
     else:
         print('Money still available')
     take_profit_price = 0
-    if first_trade_profit <= (-3 * number_of_tr_items) and last_trade_profit <= -3 and trade_amount > 0:
+    if first_trade_profit <= (-2 * number_of_tr_items) and last_trade_profit <= -2 and trade_amount > 0:
         take_profit_price = ask_rate + 0.0001
-    elif first_trade_profit <= (-3 * number_of_tr_items) and last_trade_profit <= -3 and trade_amount <= 0:
+    elif first_trade_profit <= (-2 * number_of_tr_items) and last_trade_profit <= -2 and trade_amount <= 0:
         take_profit_price = bid_rate - 0.0001
-    elif first_trade_profit >= 1 and trade_amount > 0:
-        take_profit_price = ask_rate + 0.0002
-    elif first_trade_profit >= 1 and trade_amount <= 0:
-        take_profit_price = bid_rate - 0.0002
+    elif last_trade_profit >= 1 and trade_amount > 0:
+        take_profit_price = ask_rate + 0.00003
+    elif last_trade_profit >= 1 and trade_amount <= 0:
+        take_profit_price = bid_rate - 0.00003
     else:
         pass
     
@@ -275,7 +285,7 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, profit_in_pi
         pass
     else:
         print('Take Profit condition: ', take_profit_price)
-        units_quantity = str(trade_amount)
+        units_quantity = str(int(trade_amount * 0.92))
         take_profit_price = format(take_profit_price, '.5f')
         print('TRADE SUPPOSED TO BE MADE')
         make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price)
@@ -322,7 +332,7 @@ if __name__=="__main__":
             print('Profit in PIPs for the FIRST trade: ', profit_in_pips['first_trade'])
             print('Profit in PIPs for the LAST trade: ', profit_in_pips['last_trade'])
             # print('trade_units_available', trade_units_available)
-            following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, profit_in_pips, trade_units_available, structured_price_data, INSTRUMENTS)
+            following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, profit_in_pips, trade_units_available, stream_generator, INSTRUMENTS)
             print('I am active. The fund is working. Relax!')
             print('*******************************************')
             pass
