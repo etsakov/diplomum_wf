@@ -154,6 +154,7 @@ if __name__=="__main__":
         units_available = shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID)
         get_support_trades(suspended_trades, units_available, market_rates)
         support_level = count_overall_sum(trades_info)
+        print(datetime.now())
         print('Sum for ALL open trades: ', format(support_level, '.5f'))
         if len(suspended_trades) > 0 and support_level > 0:
             for trade in trades_info:
@@ -171,5 +172,5 @@ if __name__=="__main__":
             print('No suspended trades for now.\n\n')
         else:
             pass
-        time.sleep(2)
+        # time.sleep(2)
 

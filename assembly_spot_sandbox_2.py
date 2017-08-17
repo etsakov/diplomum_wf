@@ -246,6 +246,7 @@ def create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structur
     print('Take profit price: ', take_profit_price)
     make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price, direction)
     print('The initial order has been put. Good luck!')
+    time.sleep(1)
         
 
 def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, profit_in_pips, trade_units_available, stream_generator, INSTRUMENTS):
@@ -270,6 +271,7 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, profit_in_pi
         return
     else:
         print('Money still available')
+
     take_profit_price = 0
     if first_trade_profit <= (-2 * number_of_tr_items) and last_trade_profit <= -2 and trade_amount > 0:
         take_profit_price = ask_rate + 0.0001
@@ -285,7 +287,6 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, profit_in_pi
     
     if take_profit_price == 0:
         print('No need for another trade')
-        pass
     else:
         print('Take Profit condition: ', take_profit_price)
         units_quantity = str(int(trade_amount * 0.92))
@@ -293,7 +294,7 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, profit_in_pi
         print('TRADE SUPPOSED TO BE MADE')
         direction = ''
         make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price, direction)
-        pass
+        time.sleep(1)
 
 if __name__=="__main__":
     # trade_state = fetch_trades_info(ACCESS_TOKEN, ACCOUNT_ID)
@@ -325,7 +326,6 @@ if __name__=="__main__":
             print('Trade units available: ', trade_units_available)
             create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structured_price_data, stream_generator, INSTRUMENTS)
             print('*******************************************')
-            time.sleep(1)
             pass
         else:
             print('*******************************************')
