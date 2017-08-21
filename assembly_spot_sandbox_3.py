@@ -208,7 +208,7 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, trade_units_
         print('Money still available')
 
     if first_trade_profit <= (-2 * number_of_tr_items) and last_trade_profit <= -2:
-        units_quantity = str(abs(int(trade_amount * 0.91)))
+        units_quantity = str(int(trade_units_available) // 10)
         print('TRADE SUPPOSED TO BE MADE')
         make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, direction)
         change_the_trade(ACCESS_TOKEN, ACCOUNT_ID)
