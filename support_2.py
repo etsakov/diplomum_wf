@@ -163,7 +163,7 @@ if __name__=="__main__":
                 units_quantity = str(trade['currentUnits']).replace('-', '')
                 print(type(units_quantity))
                 trade_id = trade['tradeID']
-                # transactions_close(ACCESS_TOKEN, ACCOUNT_ID, units_quantity, trade_id)
+                transactions_close(ACCESS_TOKEN, ACCOUNT_ID, units_quantity, trade_id)
                 print('!!!ALL TRANSACTIONS CLOSED!!!')
                 print('******************************\n\n')
         elif len(suspended_trades) > 0 and support_level < 0:

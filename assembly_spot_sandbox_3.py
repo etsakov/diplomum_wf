@@ -14,6 +14,7 @@ import time
 from statistics import mean
 import re
 
+
 def fetch_trades_info(ACCESS_TOKEN, ACCOUNT_ID):
     # Provides a current state for transactions
     api = API(access_token = ACCESS_TOKEN)
@@ -73,9 +74,6 @@ def read_stream_data_generator(stream_generator):
         yield instant_rates, ask_rates, bid_rates
 
 
-
-
-
 def shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID):
     # Gives the amount of trade units still available for trade
     client = oandapyV20.API(access_token = ACCESS_TOKEN)
@@ -85,7 +83,7 @@ def shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID):
     return units_available
 
 
-def make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price, direction):
+def make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, direction):
     # Just trading engine for the usage in following functions
     data = {
             "order": {
@@ -93,17 +91,41 @@ def make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_p
             "instrument": INSTRUMENTS,
             "units": direction + units_quantity,  
             "type": "MARKET",
-            "positionFill": "DEFAULT",
-            "takeProfitOnFill": {
-                "timeInForce": "GTC",
-                "price": take_profit_price
-            }
+            "positionFill": "DEFAULT"
         }
     }
 
     client = oandapyV20.API(access_token = ACCESS_TOKEN)
     r = orders.OrderCreate(accountID = ACCOUNT_ID, data = data)
     rv = client.request(r)
+    print(r.response)
+
+
+def change_the_trade(ACCESS_TOKEN, ACCOUNT_ID):
+    # Sets take_profit_price condition over the newly opened trade
+    
+    trade_state = fetch_trades_info(ACCESS_TOKEN, ACCOUNT_ID)
+    tradeID = trade_state[0]['id']
+    take_profit_price = 0
+    if int(trade_state[0]['initialUnits']) > 0:
+        take_profit_price = str(float(trade_state[0]['price']) + 0.0001)
+        # take_profit_price = trade_state[0]['price'] + 0.0001 * number_of_tr_items
+    elif int(trade_state[0]['initialUnits']) < 0:
+        take_profit_price = str(float(trade_state[0]['price']) - 0.0001)
+    else:
+        print('!!! SOMETHING WENT WRONG IN change_the_trade FUNCTION !!!')
+        pass
+
+    data = {
+        'takeProfit': {
+            'timeInForce': 'GTC',
+            'price': take_profit_price
+        }
+    }
+
+    client = oandapyV20.API(access_token = ACCESS_TOKEN)
+    r = trades.TradeCRCDO(accountID = ACCOUNT_ID, tradeID = tradeID, data = data)
+    client.request(r)
     print(r.response)
 
 
@@ -132,25 +154,19 @@ def create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structur
         break
 
     if last_price_ask > last_five_avg:
-        # go short
         direction = '-'
-        take_profit_price = last_price_bid - 0.0001
         print('Go Short')
     else:
-        # go long
         direction = ''
-        take_profit_price = last_price_ask + 0.0001
         print('Go Long')
 
-
-    print('Take profit price: ', take_profit_price)
     units_quantity = str(int(trade_units_available) // 10)
     print('units_quantity: ', units_quantity)
-    take_profit_price = format(take_profit_price, '.5f')
-    print('Take profit price: ', take_profit_price)
-    make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price, direction)
+    make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, direction)
+    change_the_trade(ACCESS_TOKEN, ACCOUNT_ID)
     print('The initial order has been put. Good luck!')
     time.sleep(1)
+    
 
 
 def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, trade_units_available, stream_generator, INSTRUMENTS):
@@ -167,9 +183,11 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, trade_units_
     if trade_amount > 0:
         pip_profit_first_trade = bid_rate - float(trade_state[-1]['price'])
         pip_profit_last_trade = bid_rate - float(trade_state[0]['price'])
+        direction = ''
     else:
         pip_profit_first_trade = float(trade_state[-1]['price']) - ask_rate
         pip_profit_last_trade = float(trade_state[0]['price']) - ask_rate
+        direction = '-'
 
     first_trade_profit = float(format((pip_profit_first_trade) * 10000, '.1f'))
     last_trade_profit = float(format((pip_profit_last_trade) * 10000, '.1f'))
@@ -183,39 +201,25 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, trade_units_
     print('Profit in PIPs for the last trade: ', last_trade_profit)
     print('Trade units left: ', trade_units_available)
 
-    if int(trade_units_available) < abs(int(trade_amount * 0.90)):
+    if int(trade_units_available) < abs(int(trade_amount * 0.91)):
         print('Les jeux sont faits! Rien ne va plus.')
         return
     else:
         print('Money still available')
 
-    take_profit_price = 0
-    if first_trade_profit <= (-2 * number_of_tr_items) and last_trade_profit <= -2 and trade_amount > 0:
-        take_profit_price = ask_rate + 0.0001
-        direction = ''
-        # take_profit_price = ask_rate + 0.0001 * number_of_tr_items
-    elif first_trade_profit <= (-2 * number_of_tr_items) and last_trade_profit <= -2 and trade_amount < 0:
-        take_profit_price = bid_rate - 0.0001
-        direction = '-'
-    elif last_trade_profit >= 2 and trade_amount > 0:
-        take_profit_price = ask_rate + 0.0001
-        direction = ''
-    elif last_trade_profit >= 2 and trade_amount < 0:
-        take_profit_price = bid_rate - 0.0001
-        direction = '-'
-    else:
-        pass
-    
-    if take_profit_price == 0:
-        print('No need for another trade')
-    else:
-        print('Take Profit condition: ', take_profit_price)
-        # units_quantity = str(int(trade_amount * 0.92))
-        units_quantity = str(abs(int(trade_units_available) // 10))
-        take_profit_price = format(take_profit_price, '.5f')
+    if first_trade_profit <= (-2 * number_of_tr_items) and last_trade_profit <= -2:
+        units_quantity = str(abs(int(trade_amount * 0.91)))
         print('TRADE SUPPOSED TO BE MADE')
-        make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, take_profit_price, direction)
+        make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, direction)
+        change_the_trade(ACCESS_TOKEN, ACCOUNT_ID)
         time.sleep(1)
+    elif last_trade_profit > 0 or first_trade_profit > 0:
+        print('No need for another trade')
+        pass
+    else:
+        print('No need for another trade')
+        pass
+
 
 if __name__=="__main__":
     stream_generator = stream_rates_generator(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS)
