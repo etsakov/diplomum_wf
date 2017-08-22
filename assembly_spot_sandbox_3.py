@@ -14,6 +14,10 @@ import time
 from statistics import mean
 import re
 
+# TO DO - find out what is os.execl(sys.executable, sys.executable, *sys.argv)
+# https://blog.petrzemek.net/2014/03/23/restarting-a-python-script-within-itself/
+# https://stackoverflow.com/a/30247200
+
 
 def fetch_trades_info(ACCESS_TOKEN, ACCOUNT_ID):
     # Provides a current state for transactions
@@ -55,13 +59,14 @@ def read_stream_data_generator(stream_generator):
             print(">>> No data available <<<")
             continue
 
-        instant_time = datetime.strptime(rate['time'].split('.')[0], '%Y-%m-%dT%H:%M:%S')
+        # instant_time = datetime.strptime(rate['time'].split('.')[0], '%Y-%m-%dT%H:%M:%S')
+        # print('STATE TIME: ', instant_time)
         instant_rates = {
-            'time' : datetime.strftime(instant_time, '%d.%m.%Y %H:%M:%S'),
-            'status' : rate['status'],
+            # 'time' : datetime.strftime(instant_time, '%d.%m.%Y %H:%M:%S'),
+            # 'status' : rate['status'],
             'ask' : float(rate['asks'][0]['price']),
-            'bid' : float(rate['bids'][0]['price']),
-            'spread' : float('%.5f' % (float(rate['asks'][0]['price']) - float(rate['bids'][0]['price']))),
+            'bid' : float(rate['bids'][0]['price'])
+            # 'spread' : float('%.5f' % (float(rate['asks'][0]['price']) - float(rate['bids'][0]['price']))),
         }
         
         ask_rates.append(float(rate['asks'][0]['price']))
@@ -166,12 +171,13 @@ def create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structur
     change_the_trade(ACCESS_TOKEN, ACCOUNT_ID)
     print('The initial order has been put. Good luck!')
     time.sleep(1)
+    return
     
 
 
 def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, trade_units_available, stream_generator, INSTRUMENTS):
     # Once the initial trade is open makes further trades
-    print('LAST TRADE ID: ', trade_state[0]['id'])
+    # print('LAST TRADE ID: ', trade_state[0]['id'])
 
     for price in stream_generator:
         ask_rate = float(price['asks'][0]['price'])
@@ -213,6 +219,7 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, trade_units_
         make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, direction)
         change_the_trade(ACCESS_TOKEN, ACCOUNT_ID)
         time.sleep(1)
+        return
     elif last_trade_profit > 0 or first_trade_profit > 0:
         print('No need for another trade')
         pass
@@ -224,24 +231,52 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, trade_units_
 if __name__=="__main__":
     stream_generator = stream_rates_generator(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS)
     structured_price_data = read_stream_data_generator(stream_generator)
+    # TO DO - try-except to avoid error shut-down
 
     while True:
-        trade_state = fetch_trades_info(ACCESS_TOKEN, ACCOUNT_ID)
-        trade_units_available = shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID)
-        if len(trade_state) == 0:
-            time.sleep(2)
-            print('*******************************************')
-            print('Trade units available: ', trade_units_available)
-            create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structured_price_data, stream_generator, INSTRUMENTS)
-            print('*******************************************')
-            time.sleep(1)
-            pass
-        else:
-            print('*******************************************')
-            trade_state
-            trade_units_available
-            following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, trade_units_available, stream_generator, INSTRUMENTS)
-            print('I am active. The fund is working. Relax!')
-            print('*******************************************')
-            time.sleep(1)
-            pass
+        try:
+            trade_state = fetch_trades_info(ACCESS_TOKEN, ACCOUNT_ID)
+            trade_units_available = shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID)
+            print(datetime.now())
+            if len(trade_state) == 0:
+                time.sleep(2)
+                print('*******************************************')
+                print('Trade units available: ', trade_units_available)
+                create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structured_price_data, stream_generator, INSTRUMENTS)
+                print('*******************************************')
+                time.sleep(1)
+                pass
+            else:
+                print('*******************************************')
+                trade_state
+                trade_units_available
+                following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, trade_units_available, stream_generator, INSTRUMENTS)
+                print('I am active. The fund is working. Relax!')
+                print('*******************************************')
+                time.sleep(1)
+                pass
+        except KeyboardInterrupt:
+            print('*******************************')
+            print('\n\nProgramm was interrupt by user\n\n')
+            print('*******************************')
+            break
+        except ConnectionResetError:
+            print('CONNECTION WAS LOST - Oanda tried to break it')
+            print('CONNECTION WAS LOST - Oanda tried to break it')
+            print('CONNECTION WAS LOST - Oanda tried to break it')
+            change_the_trade(ACCESS_TOKEN, ACCOUNT_ID)
+        # except ProtocolError:
+        #     print('CONNECTION WAS LOST - Protocol Error')
+        #     print('CONNECTION WAS LOST - Protocol Error')
+        #     print('CONNECTION WAS LOST - Protocol Error')
+        #     change_the_trade(ACCESS_TOKEN, ACCOUNT_ID)
+        # except ChunkedEncodingError:
+        #     print('CONNECTION WAS LOST - Encoding Error')
+        #     print('CONNECTION WAS LOST - Encoding Error')
+        #     print('CONNECTION WAS LOST - Encoding Error')
+        #     change_the_trade(ACCESS_TOKEN, ACCOUNT_ID)
+        except NameError:
+            print('CONNECTION WAS LOST - Name Error')
+            print('CONNECTION WAS LOST - Name Error')
+            print('CONNECTION WAS LOST - Name Error')
+            change_the_trade(ACCESS_TOKEN, ACCOUNT_ID)
