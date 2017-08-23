@@ -113,10 +113,10 @@ def change_the_trade(ACCESS_TOKEN, ACCOUNT_ID):
     tradeID = trade_state[0]['id']
     take_profit_price = 0
     if int(trade_state[0]['initialUnits']) > 0:
-        take_profit_price = str(float(trade_state[0]['price']) + 0.0001)
+        take_profit_price = format(float(trade_state[0]['price']) + 0.0002, '.5f')
         # take_profit_price = trade_state[0]['price'] + 0.0001 * number_of_tr_items
     elif int(trade_state[0]['initialUnits']) < 0:
-        take_profit_price = str(float(trade_state[0]['price']) - 0.0001)
+        take_profit_price = format(float(trade_state[0]['price']) - 0.0002, '.5f')
     else:
         print('!!! SOMETHING WENT WRONG IN change_the_trade FUNCTION !!!')
         pass
@@ -127,7 +127,7 @@ def change_the_trade(ACCESS_TOKEN, ACCOUNT_ID):
             'price': take_profit_price
         }
     }
-
+    print(data)
     client = oandapyV20.API(access_token = ACCESS_TOKEN)
     r = trades.TradeCRCDO(accountID = ACCOUNT_ID, tradeID = tradeID, data = data)
     client.request(r)
@@ -203,8 +203,8 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, trade_units_
     print('Current ASK rate: ', format(ask_rate, '.5f'))
     print('Current BID rate: ', format(bid_rate, '.5f'))
     print('Last trade amount: ', trade_amount)
-    print('Profit in PIPs for the first trade: ', first_trade_profit)
     print('Profit in PIPs for the last trade: ', last_trade_profit)
+    print('Profit in PIPs for the first trade: ', first_trade_profit)
     print('Trade units left: ', trade_units_available)
 
     if int(trade_units_available) < abs(int(trade_amount * 0.91)):
@@ -219,7 +219,7 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, trade_units_
         make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, direction)
         change_the_trade(ACCESS_TOKEN, ACCOUNT_ID)
         time.sleep(1)
-        return
+        pass
     elif last_trade_profit > 0 or first_trade_profit > 0:
         print('No need for another trade')
         pass
@@ -229,6 +229,7 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, trade_units_
 
 
 if __name__=="__main__":
+    # change_the_trade(ACCESS_TOKEN, ACCOUNT_ID)
     stream_generator = stream_rates_generator(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS)
     structured_price_data = read_stream_data_generator(stream_generator)
     # TO DO - try-except to avoid error shut-down
@@ -257,7 +258,7 @@ if __name__=="__main__":
                 pass
         except KeyboardInterrupt:
             print('*******************************')
-            print('\n\nProgramm was interrupt by user\n\n')
+            print('\n\nProgramm has been interrupted by user\n\n')
             print('*******************************')
             break
         except ConnectionResetError:
@@ -275,8 +276,8 @@ if __name__=="__main__":
         #     print('CONNECTION WAS LOST - Encoding Error')
         #     print('CONNECTION WAS LOST - Encoding Error')
         #     change_the_trade(ACCESS_TOKEN, ACCOUNT_ID)
-        except NameError:
-            print('CONNECTION WAS LOST - Name Error')
-            print('CONNECTION WAS LOST - Name Error')
-            print('CONNECTION WAS LOST - Name Error')
-            change_the_trade(ACCESS_TOKEN, ACCOUNT_ID)
+        # except NameError:
+        #     print('CONNECTION WAS LOST - Name Error')
+        #     print('CONNECTION WAS LOST - Name Error')
+        #     print('CONNECTION WAS LOST - Name Error')
+        #     change_the_trade(ACCESS_TOKEN, ACCOUNT_ID)
