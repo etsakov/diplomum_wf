@@ -116,9 +116,9 @@ def make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, direct
 def set_trading_strategy(structured_price_data):
     # Measures market volatility and sets-up the trade conditions
     for rate_list in structured_price_data:
-        delta = float(format(max(rate_list[1]) - min(rate_list[1]), '.5f'))
+        delta = float(format((max(rate_list[1]) - min(rate_list[1])) * 10000, '.5f'))
 
-        if delta < 10:
+        if delta < 8:
             trade_open_step = -2
             take_profit_condition = 0.0002
         elif delta <= 25:
@@ -129,7 +129,7 @@ def set_trading_strategy(structured_price_data):
             take_profit_condition = 0.00075
         else:
             trade_open_step = -10
-            take_profit_condition = 0.00010
+            take_profit_condition = 0.0010
 
         return trade_open_step, take_profit_condition
 
@@ -167,7 +167,7 @@ def change_the_trade(ACCESS_TOKEN, ACCOUNT_ID, take_profit_condition):
     print(r.response)
 
 
-def create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structured_price_data, stream_generator, INSTRUMENTS):
+def create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structured_price_data, stream_generator, INSTRUMENTS, take_profit_condition):
     # Chooses direction for the first deal and makes the first trade
 
     for prices in structured_price_data:
@@ -207,7 +207,7 @@ def create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structur
     return
 
 
-def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, trade_units_available, stream_generator, INSTRUMENTS, trade_open_step):
+def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, trade_units_available, stream_generator, INSTRUMENTS, trade_open_step, take_profit_condition):
     # Once the initial trade is open makes further trades
     # print('LAST TRADE ID: ', trade_state[0]['id'])
     for price in stream_generator:
@@ -244,7 +244,8 @@ def following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, trade_units_
     else:
         print('Money still available')
 
-    if first_trade_profit <= (trade_open_step * number_of_tr_items) and last_trade_profit <= trade_open_step:
+    # if first_trade_profit <= (trade_open_step * number_of_tr_items) and last_trade_profit <= trade_open_step:
+    if last_trade_profit <= trade_open_step:
         units_quantity = str(int(trade_units_available) // 10)
         print('TRADE SUPPOSED TO BE MADE')
         make_the_trade(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS, units_quantity, direction)
@@ -263,14 +264,13 @@ if __name__=="__main__":
     # change_the_trade(ACCESS_TOKEN, ACCOUNT_ID)
     stream_generator = stream_rates_generator(ACCESS_TOKEN, ACCOUNT_ID, INSTRUMENTS)
     structured_price_data = read_stream_data_generator(stream_generator)
-    
-    trade_open_step = set_trading_strategy(structured_price_data)[0]
-    take_profit_condition = set_trading_strategy(structured_price_data)[1]
 
     while True:
         try:
             trade_state = fetch_trades_info(ACCESS_TOKEN, ACCOUNT_ID)
             trade_units_available = shows_trade_units_available(ACCESS_TOKEN, ACCOUNT_ID)
+            trade_open_step = set_trading_strategy(structured_price_data)[0]
+            take_profit_condition = set_trading_strategy(structured_price_data)[1]
             print(datetime.now())
             if len(trade_state) == 0:
                 time.sleep(2)
@@ -278,7 +278,7 @@ if __name__=="__main__":
                 print('Trade units available: ', trade_units_available)
                 take_profit_condition
                 print('Take profit CONDITION: ', take_profit_condition * 10000)
-                create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structured_price_data, stream_generator, INSTRUMENTS)
+                create_first_trade(ACCESS_TOKEN, ACCOUNT_ID, trade_units_available, structured_price_data, stream_generator, INSTRUMENTS, take_profit_condition)
                 print('*******************************************')
                 time.sleep(5)
                 pass
@@ -290,7 +290,7 @@ if __name__=="__main__":
                 take_profit_condition
                 print('Trade open STEP: ', trade_open_step)
                 print('Take profit CONDITION: ', take_profit_condition * 10000)
-                following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, trade_units_available, stream_generator, INSTRUMENTS, trade_open_step)
+                following_trades_creator(ACCESS_TOKEN, ACCOUNT_ID, trade_state, trade_units_available, stream_generator, INSTRUMENTS, trade_open_step, take_profit_condition)
                 print('I am active. The fund is working. Relax!')
                 print('*******************************************')
                 pass
@@ -303,4 +303,4 @@ if __name__=="__main__":
             print('CONNECTION WAS LOST - Oanda tried to break it')
             print('CONNECTION WAS LOST - Oanda tried to break it')
             print('CONNECTION WAS LOST - Oanda tried to break it')
-            change_the_trade(ACCESS_TOKEN, ACCOUNT_ID)
+            change_the_trade(ACCESS_TOKEN, ACCOUNT_ID, take_profit_condition)
